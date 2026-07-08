@@ -19,9 +19,7 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
-  },
-  output: 'export',
-  basePath: '/beautytime24',
+  }
 };
 
 export default withSerwist(nextConfig);
