@@ -2,12 +2,16 @@
 
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useRouter } from 'next/navigation';
 import { dokanService } from '@/services/dokan.service';
-import { Store, MapPin, Phone, UploadCloud, Link as LinkIcon } from 'lucide-react';
+import { logoutVendor } from '@/app/actions/auth';
+import { Store, MapPin, UploadCloud, Link as LinkIcon, LogOut } from 'lucide-react';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { register, handleSubmit, setValue, formState: { isSubmitting } } = useForm();
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   // States for handling file uploads seamlessly
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -74,6 +78,19 @@ export default function ProfilePage() {
     } catch (error) {
       alert('خطا در بروزرسانی پروفایل.');
       console.error(error);
+    }
+  };
+
+  const onLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logoutVendor();
+      router.replace('/login');
+      router.refresh();
+    } catch (error) {
+      alert('خروج از حساب با خطا مواجه شد.');
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -162,15 +179,27 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Submit Actions */}
+        {/* Submit & Logout Actions */}
         <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4 fixed bottom-16 inset-x-0 md:static md:bg-transparent md:border-0 md:p-0 z-40">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full md:w-auto md:px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl disabled:opacity-70 transition-colors flex justify-center items-center mx-auto md:ms-0"
-          >
-            {isSubmitting ? 'در حال ذخیره اطلاعات...' : 'ذخیره تغییرات فروشگاه'}
-          </button>
+          <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+            <button
+              type="button"
+              onClick={onLogout}
+              disabled={isLoggingOut}
+              className="w-full md:w-auto md:px-6 py-3.5 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/30 dark:text-red-300 font-bold rounded-xl disabled:opacity-70 transition-colors flex justify-center items-center gap-2"
+            >
+              <LogOut size={18} />
+              {isLoggingOut ? 'در حال خروج...' : 'خروج از حساب'}
+            </button>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full md:w-auto md:px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl disabled:opacity-70 transition-colors flex justify-center items-center"
+            >
+              {isSubmitting ? 'در حال ذخیره اطلاعات...' : 'ذخیره تغییرات فروشگاه'}
+            </button>
+          </div>
         </div>
 
       </form>

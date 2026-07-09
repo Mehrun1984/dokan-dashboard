@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import React from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
@@ -5,11 +7,18 @@ import DashboardMobileHeader from '@/components/layout/DashboardMobileHeader';
 import { DashboardThemeProvider } from '@/providers/DashboardThemeProvider';
 import { DashboardStoreProvider } from '@/providers/DashboardStoreProvider';
 
-export default function VendorLayout({
+export default async function VendorLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('vendor_jwt')?.value;
+
+  if (!token) {
+    redirect('/login');
+  }
+
   return (
     <DashboardThemeProvider>
       <DashboardStoreProvider>

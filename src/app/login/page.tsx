@@ -22,6 +22,18 @@ const COUNTDOWN_SECONDS = 120;
 
 export default function OTPLoginPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    const token = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('vendor_jwt='))
+      ?.split('=')[1];
+
+    if (token) {
+      router.replace('/dashboard');
+      router.refresh();
+    }
+  }, [router]);
   
   const [step, setStep] = useState<1 | 2>(1);
   const [phoneNumber, setPhoneNumber] = useState('');

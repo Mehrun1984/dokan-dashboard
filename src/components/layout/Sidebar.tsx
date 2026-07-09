@@ -2,17 +2,31 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { vendorNavLinks } from '@/lib/navigation';
-import { ChevronRight, ChevronLeft, Moon, Sun } from 'lucide-react';
+import { logoutVendor } from '@/app/actions/auth';
+import { ChevronRight, ChevronLeft, Moon, Sun, LogOut } from 'lucide-react';
 import { useDashboardTheme } from '@/providers/DashboardThemeProvider';
 import { useDashboardStore } from '@/providers/DashboardStoreProvider';
 
 export default function Sidebar() {
+  const router = useRouter();
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { effectiveTheme, toggleTheme } = useDashboardTheme();
   const { shopName, isLoadingShopName } = useDashboardStore();
+
+  const onLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logoutVendor();
+      router.replace('/login');
+      router.refresh();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <aside 
@@ -69,6 +83,22 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="p-3 border-t border-gray-100 dark:border-gray-800">
+        <button
+          type="button"
+          onClick={onLogout}
+          disabled={isLoggingOut}
+          className={`w-full flex items-center rounded-lg px-3 py-3 transition-colors text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-70 ${
+            isCollapsed ? 'justify-center' : 'justify-start'
+          }`}
+          title="خروج از حساب"
+          aria-label="خروج از حساب"
+        >
+          <LogOut size={22} className={isCollapsed ? '' : 'me-3'} />
+          {!isCollapsed && <span>{isLoggingOut ? 'در حال خروج...' : 'خروج از حساب'}</span>}
+        </button>
+      </div>
     </aside>
   );
 }
