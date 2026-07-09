@@ -26,6 +26,7 @@ export default function ProfilePage() {
       const data = await dokanService.getStoreSettings();
       // Populate form
       setValue('store_name', data.store_name);
+      console.log(data.store_name);
       setValue('phone', data.phone);
       setValue('address', data.address?.street_1);
       setValue('social.instagram', data.social?.instagram);
