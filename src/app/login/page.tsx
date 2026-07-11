@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -22,18 +22,6 @@ const COUNTDOWN_SECONDS = 120;
 
 export default function OTPLoginPage() {
   const router = useRouter();
-
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith('vendor_jwt='))
-      ?.split('=')[1];
-
-    if (token) {
-      router.replace('/dashboard');
-      router.refresh();
-    }
-  }, [router]);
   
   const [step, setStep] = useState<1 | 2>(1);
   const [phoneNumber, setPhoneNumber] = useState('');

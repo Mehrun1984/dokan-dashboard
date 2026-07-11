@@ -1,6 +1,17 @@
 import apiClient from '@/lib/axios';
 import { DokanProduct } from '@/types/dokan'; // Ensure this matches your types location
 
+const INTERNAL_SETTINGS_ENDPOINT = '/api/vendor/settings';
+
+const parseInternalApiResponse = async (res: Response) => {
+  const payload = await res.json().catch(() => null);
+  if (!res.ok) {
+    const message = payload?.message || payload?.error || 'Request failed';
+    throw new Error(message);
+  }
+  return payload;
+};
+
 export const dokanService = {
   // ==========================================
   // PRODUCTS
@@ -55,13 +66,25 @@ export const dokanService = {
   // PROFILE & SETTINGS
   // ==========================================
   getStoreSettings: async () => {
-    const { data } = await apiClient.get('/dokan/v1/settings');
-    return data;
+    const res = await fetch(INTERNAL_SETTINGS_ENDPOINT, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    return parseInternalApiResponse(res);
   },
 
   updateStoreSettings: async (settingsPayload: any) => {
-    const { data } = await apiClient.put('/dokan/v1/settings', settingsPayload);
-    return data;
+    const res = await fetch(INTERNAL_SETTINGS_ENDPOINT, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(settingsPayload),
+      cache: 'no-store',
+    });
+    return parseInternalApiResponse(res);
   },
 
   // ==========================================

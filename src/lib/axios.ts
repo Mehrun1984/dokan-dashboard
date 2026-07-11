@@ -8,6 +8,10 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
+  if (typeof document === 'undefined') {
+    return config;
+  }
+
   // Extract the token directly from the browser's cookies
   const token = document.cookie
     .split('; ')
