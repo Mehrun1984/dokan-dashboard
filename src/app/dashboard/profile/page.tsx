@@ -7,9 +7,22 @@ import { dokanService } from '@/services/dokan.service';
 import { logoutVendor } from '@/app/actions/auth';
 import { Store, MapPin, UploadCloud, Link as LinkIcon, LogOut } from 'lucide-react';
 
+type ProfileFormValues = {
+  store_name: string;
+  phone: string;
+  address: string;
+  social: {
+    instagram: string;
+    twitter: string;
+  };
+  service_area_id: string;
+  latitude: string;
+  longitude: string;
+};
+
 export default function ProfilePage() {
   const router = useRouter();
-  const { register, handleSubmit, setValue, formState: { isSubmitting } } = useForm();
+  const { register, handleSubmit, setValue, formState: { isSubmitting } } = useForm<ProfileFormValues>();
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   
@@ -23,14 +36,21 @@ export default function ProfilePage() {
 
   const fetchSettings = async () => {
     try {
-      const data = await dokanService.getStoreSettings();
+      const [settingsData, locationData] = await Promise.all([
+        dokanService.getStoreSettings(),
+        dokanService.getVendorServiceArea(),
+      ]);
+
       // Populate form
-      setValue('store_name', data.store_name);
-      console.log(data.store_name);
-      setValue('phone', data.phone);
-      setValue('address', data.address?.street_1);
-      setValue('social.instagram', data.social?.instagram);
-      setValue('social.twitter', data.social?.twitter);
+      setValue('store_name', settingsData.store_name ?? '');
+      setValue('phone', settingsData.phone ?? '');
+      setValue('address', settingsData.address?.street_1 ?? '');
+      setValue('social.instagram', settingsData.social?.instagram ?? '');
+      setValue('social.twitter', settingsData.social?.twitter ?? '');
+
+      setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
+      setValue('latitude', locationData.latitude ?? '');
+      setValue('longitude', locationData.longitude ?? '');
     } catch (error) {
       console.error('Failed to load profile', error);
     } finally {
@@ -38,7 +58,7 @@ export default function ProfilePage() {
     }
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: ProfileFormValues) => {
     try {
       let avatarId = null;
       let bannerId = null;
@@ -68,8 +88,18 @@ export default function ProfilePage() {
       if (avatarId) payload.gravatar = avatarId;
       if (bannerId) payload.banner = bannerId;
 
-      // 3. Update Settings
-      await dokanService.updateStoreSettings(payload);
+      const parsedServiceAreaId = Number(data.service_area_id || 0);
+
+      // 3. Update settings and location
+      await Promise.all([
+        dokanService.updateStoreSettings(payload),
+        dokanService.updateVendorServiceArea({
+          service_area_id: Number.isFinite(parsedServiceAreaId) && parsedServiceAreaId > 0 ? parsedServiceAreaId : 0,
+          latitude: (data.latitude || '').trim(),
+          longitude: (data.longitude || '').trim(),
+        }),
+      ]);
+
       alert('پروفایل با موفقیت بروزرسانی شد.');
       
       // Reset file states so we don't re-upload on subsequent saves
@@ -158,6 +188,52 @@ export default function ProfilePage() {
               آدرس کامل
             </label>
             <textarea {...register('address')} rows={3} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+          </div>
+        </div>
+
+        {/* Business Location Card */}
+        <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm space-y-4">
+          <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100 flex items-center gap-2 border-b border-gray-50 dark:border-gray-800 pb-3">
+            <MapPin size={20} className="text-blue-600" />
+            موقعیت کسب و کار
+          </h3>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">شناسه محدوده سرویس</label>
+            <input
+              dir="ltr"
+              type="number"
+              min={0}
+              placeholder="مثال: 12"
+              {...register('service_area_id')}
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              شناسه ترم taxonomy سرویس. برای حذف مقدار، این فیلد را خالی بگذارید یا 0 وارد کنید.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Latitude</label>
+              <input
+                dir="ltr"
+                inputMode="decimal"
+                placeholder="35.6892"
+                {...register('latitude')}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Longitude</label>
+              <input
+                dir="ltr"
+                inputMode="decimal"
+                placeholder="51.3890"
+                {...register('longitude')}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start"
+              />
+            </div>
           </div>
         </div>
 

@@ -2,6 +2,26 @@ import apiClient from '@/lib/axios';
 import { DokanProduct } from '@/types/dokan'; // Ensure this matches your types location
 
 const INTERNAL_SETTINGS_ENDPOINT = '/api/vendor/settings';
+const INTERNAL_SERVICE_AREA_ENDPOINT = '/api/vendor/service-area';
+
+export interface VendorServiceAreaTerm {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface VendorServiceAreaResponse {
+  vendor_id: number;
+  service_area: VendorServiceAreaTerm | null;
+  latitude: string;
+  longitude: string;
+}
+
+export interface UpdateVendorServiceAreaPayload {
+  service_area_id?: number;
+  latitude?: string;
+  longitude?: string;
+}
 
 const parseInternalApiResponse = async (res: Response) => {
   const payload = await res.json().catch(() => null);
@@ -82,6 +102,28 @@ export const dokanService = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(settingsPayload),
+      cache: 'no-store',
+    });
+    return parseInternalApiResponse(res);
+  },
+
+  getVendorServiceArea: async (): Promise<VendorServiceAreaResponse> => {
+    const res = await fetch(INTERNAL_SERVICE_AREA_ENDPOINT, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    return parseInternalApiResponse(res);
+  },
+
+  updateVendorServiceArea: async (payload: UpdateVendorServiceAreaPayload) => {
+    const res = await fetch(INTERNAL_SERVICE_AREA_ENDPOINT, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
       cache: 'no-store',
     });
     return parseInternalApiResponse(res);
