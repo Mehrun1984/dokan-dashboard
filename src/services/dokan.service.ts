@@ -25,7 +25,6 @@ export interface VendorServiceAreasResponse {
 
 export interface UpdateVendorServiceAreaPayload {
   service_area_id?: number;
-  location_name?: string;
   latitude?: string;
   longitude?: string;
 }

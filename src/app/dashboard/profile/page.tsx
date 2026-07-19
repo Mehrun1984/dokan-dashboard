@@ -16,7 +16,6 @@ type ProfileFormValues = {
     twitter: string;
   };
   service_area_id: string;
-  location_name: string;
   latitude: string;
   longitude: string;
 };
@@ -27,6 +26,7 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [serviceAreaOptions, setServiceAreaOptions] = useState<VendorServiceAreaTerm[]>([]);
+  const [locationDisplayName, setLocationDisplayName] = useState('');
   
   // States for handling file uploads seamlessly
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -54,7 +54,7 @@ export default function ProfilePage() {
       setValue('social.twitter', settingsData.social?.twitter ?? '');
 
       setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
-      setValue('location_name', locationData.location_name ?? locationData.service_area?.name ?? '');
+      setLocationDisplayName(locationData.location_name ?? locationData.service_area?.name ?? '');
       setValue('latitude', locationData.latitude ?? '');
       setValue('longitude', locationData.longitude ?? '');
     } catch (error) {
@@ -101,7 +101,6 @@ export default function ProfilePage() {
         dokanService.updateStoreSettings(payload),
         dokanService.updateVendorServiceArea({
           service_area_id: Number.isFinite(parsedServiceAreaId) && parsedServiceAreaId > 0 ? parsedServiceAreaId : 0,
-          location_name: (data.location_name || '').trim(),
           latitude: (data.latitude || '').trim(),
           longitude: (data.longitude || '').trim(),
         }),
@@ -225,13 +224,11 @@ export default function ProfilePage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام موقعیت</label>
-            <input
-              placeholder="مثال: تهران"
-              {...register('location_name')}
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl">
+              {locationDisplayName || 'تعریف نشده'}
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              در صورت نیاز می‌توانید نام موقعیت را به صورت دستی تغییر دهید.
+              نام موقعیت فقط قابل مشاهده است و از طریق این فرم قابل تغییر نیست.
             </p>
           </div>
 
