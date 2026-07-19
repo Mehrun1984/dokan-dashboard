@@ -26,7 +26,6 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [serviceAreaOptions, setServiceAreaOptions] = useState<VendorServiceAreaTerm[]>([]);
-  const [locationDisplayName, setLocationDisplayName] = useState('');
   
   // States for handling file uploads seamlessly
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -54,7 +53,6 @@ export default function ProfilePage() {
       setValue('social.twitter', settingsData.social?.twitter ?? '');
 
       setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
-      setLocationDisplayName(locationData.location_name ?? locationData.service_area?.name ?? '');
       setValue('latitude', locationData.latitude ?? '');
       setValue('longitude', locationData.longitude ?? '');
     } catch (error) {
@@ -219,16 +217,6 @@ export default function ProfilePage() {
             </select>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               برای حذف محدوده سرویس، گزینه انتخاب محدوده سرویس را انتخاب کنید.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام موقعیت</label>
-            <div className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl">
-              {locationDisplayName || 'تعریف نشده'}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              نام موقعیت فقط قابل مشاهده است و از طریق این فرم قابل تغییر نیست.
             </p>
           </div>
 
