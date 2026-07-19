@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
-import { dokanService } from '@/services/dokan.service';
+import { dokanService, VendorServiceAreaTerm } from '@/services/dokan.service';
 import { logoutVendor } from '@/app/actions/auth';
 import { Store, MapPin, UploadCloud, Link as LinkIcon, LogOut } from 'lucide-react';
 
@@ -16,6 +16,7 @@ type ProfileFormValues = {
     twitter: string;
   };
   service_area_id: string;
+  location_name: string;
   latitude: string;
   longitude: string;
 };
@@ -25,6 +26,7 @@ export default function ProfilePage() {
   const { register, handleSubmit, setValue, formState: { isSubmitting } } = useForm<ProfileFormValues>();
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [serviceAreaOptions, setServiceAreaOptions] = useState<VendorServiceAreaTerm[]>([]);
   
   // States for handling file uploads seamlessly
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -36,10 +38,13 @@ export default function ProfilePage() {
 
   const fetchSettings = async () => {
     try {
-      const [settingsData, locationData] = await Promise.all([
+      const [settingsData, locationData, serviceAreasData] = await Promise.all([
         dokanService.getStoreSettings(),
         dokanService.getVendorServiceArea(),
+        dokanService.getServiceAreas(),
       ]);
+
+      setServiceAreaOptions(Array.isArray(serviceAreasData?.locations) ? serviceAreasData.locations : []);
 
       // Populate form
       setValue('store_name', settingsData.store_name ?? '');
@@ -49,6 +54,7 @@ export default function ProfilePage() {
       setValue('social.twitter', settingsData.social?.twitter ?? '');
 
       setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
+      setValue('location_name', locationData.location_name ?? locationData.service_area?.name ?? '');
       setValue('latitude', locationData.latitude ?? '');
       setValue('longitude', locationData.longitude ?? '');
     } catch (error) {
@@ -95,6 +101,7 @@ export default function ProfilePage() {
         dokanService.updateStoreSettings(payload),
         dokanService.updateVendorServiceArea({
           service_area_id: Number.isFinite(parsedServiceAreaId) && parsedServiceAreaId > 0 ? parsedServiceAreaId : 0,
+          location_name: (data.location_name || '').trim(),
           latitude: (data.latitude || '').trim(),
           longitude: (data.longitude || '').trim(),
         }),
@@ -199,17 +206,32 @@ export default function ProfilePage() {
           </h3>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">شناسه محدوده سرویس</label>
-            <input
-              dir="ltr"
-              type="number"
-              min={0}
-              placeholder="مثال: 12"
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">محدوده سرویس</label>
+            <select
               {...register('service_area_id')}
               className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start"
+            >
+              <option value="">انتخاب محدوده سرویس</option>
+              {serviceAreaOptions.map((location) => (
+                <option key={location.id} value={String(location.id)}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              برای حذف محدوده سرویس، گزینه انتخاب محدوده سرویس را انتخاب کنید.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام موقعیت</label>
+            <input
+              placeholder="مثال: تهران"
+              {...register('location_name')}
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              شناسه ترم taxonomy سرویس. برای حذف مقدار، این فیلد را خالی بگذارید یا 0 وارد کنید.
+              در صورت نیاز می‌توانید نام موقعیت را به صورت دستی تغییر دهید.
             </p>
           </div>
 

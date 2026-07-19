@@ -3,6 +3,7 @@ import { DokanProduct } from '@/types/dokan'; // Ensure this matches your types 
 
 const INTERNAL_SETTINGS_ENDPOINT = '/api/vendor/settings';
 const INTERNAL_SERVICE_AREA_ENDPOINT = '/api/vendor/service-area';
+const INTERNAL_SERVICE_AREAS_ENDPOINT = '/api/vendor/service-areas';
 
 export interface VendorServiceAreaTerm {
   id: number;
@@ -13,12 +14,18 @@ export interface VendorServiceAreaTerm {
 export interface VendorServiceAreaResponse {
   vendor_id: number;
   service_area: VendorServiceAreaTerm | null;
+  location_name: string;
   latitude: string;
   longitude: string;
 }
 
+export interface VendorServiceAreasResponse {
+  locations: VendorServiceAreaTerm[];
+}
+
 export interface UpdateVendorServiceAreaPayload {
   service_area_id?: number;
+  location_name?: string;
   latitude?: string;
   longitude?: string;
 }
@@ -109,6 +116,15 @@ export const dokanService = {
 
   getVendorServiceArea: async (): Promise<VendorServiceAreaResponse> => {
     const res = await fetch(INTERNAL_SERVICE_AREA_ENDPOINT, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    return parseInternalApiResponse(res);
+  },
+
+  getServiceAreas: async (): Promise<VendorServiceAreasResponse> => {
+    const res = await fetch(INTERNAL_SERVICE_AREAS_ENDPOINT, {
       method: 'GET',
       credentials: 'include',
       cache: 'no-store',
