@@ -79,6 +79,20 @@ const formatJalaliDate = (rawDate?: string) => {
 
 const extractDate = (apt: any) => formatJalaliDate(apt.appointment_date || apt.date);
 const extractTime = (apt: any) => (apt.start_time || apt.time_slot ? (apt.start_time || apt.time_slot).substring(0, 5) : '--:--');
+const extractOperator = (apt: any) => {
+  const alias = String(apt?.operator_alias || '').trim();
+  const operatorId = Number(apt?.operator_id || apt?.product_operator_id || 0);
+
+  if (alias) {
+    return alias;
+  }
+
+  if (operatorId > 0) {
+    return `اپراتور #${operatorId}`;
+  }
+
+  return 'تعیین نشده';
+};
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -158,6 +172,7 @@ export default function AppointmentsPage() {
             {appointments.map((apt: any) => {
               const { customerName, customerPhone } = extractCustomerInfo(apt);
               const status = getStatusMeta(apt.status || '');
+              const operatorLabel = extractOperator(apt);
 
               return (
                 <div key={apt.id} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-4 space-y-4">
@@ -192,6 +207,11 @@ export default function AppointmentsPage() {
                       </p>
                     </div>
                   </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-3 py-2.5">
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">اپراتور</p>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{operatorLabel}</p>
+                  </div>
                 </div>
               );
             })}
@@ -200,21 +220,23 @@ export default function AppointmentsPage() {
           {/* Desktop rows */}
           <div className="hidden md:block bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
             <div className="grid grid-cols-12 gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 text-sm font-semibold text-gray-600 dark:text-gray-300">
-              <div className="col-span-4">مشتری</div>
+              <div className="col-span-3">مشتری</div>
+              <div className="col-span-2">اپراتور</div>
               <div className="col-span-2">تاریخ</div>
               <div className="col-span-2">ساعت</div>
               <div className="col-span-2">وضعیت</div>
-              <div className="col-span-2">تماس</div>
+              <div className="col-span-1">تماس</div>
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {appointments.map((apt: any) => {
                 const { customerName, customerPhone } = extractCustomerInfo(apt);
                 const status = getStatusMeta(apt.status || '');
+                const operatorLabel = extractOperator(apt);
 
                 return (
                   <div key={apt.id} className="grid grid-cols-12 gap-3 px-6 py-4 items-center hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition-colors">
-                    <div className="col-span-4 min-w-0">
+                    <div className="col-span-3 min-w-0">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center shrink-0">
                           <User size={18} />
@@ -224,6 +246,10 @@ export default function AppointmentsPage() {
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">شماره مشتری</p>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="col-span-2 text-sm text-gray-700 dark:text-gray-200 truncate">
+                      {operatorLabel}
                     </div>
 
                     <div className="col-span-2 text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
@@ -242,7 +268,7 @@ export default function AppointmentsPage() {
                       </span>
                     </div>
 
-                    <div className="col-span-2 text-sm text-gray-600 dark:text-gray-300 truncate" dir="ltr">
+                    <div className="col-span-1 text-sm text-gray-600 dark:text-gray-300 truncate" dir="ltr">
                       {customerPhone}
                     </div>
                   </div>

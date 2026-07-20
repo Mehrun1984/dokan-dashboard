@@ -5,13 +5,20 @@ const NAMESPACE = '/core-plugin/v1/booking';
 // The full appointment object returned by the server
 export interface Appointment {
   id: number;
-  service_id: number;
+  service_id?: number;
   customer_name: string;
   customer_phone: string;
-  date: string;
-  time_slot: string;
+  date?: string;
+  time_slot?: string;
   status: string;
   customer_id?: number; // Backend might return this after generating the shadow account
+  appointment_date?: string;
+  start_time?: string;
+  end_time?: string;
+  notes?: string;
+  operator_alias?: string;
+  operator_id?: number;
+  product_operator_id?: number;
 }
 
 // The payload sent to create an appointment (Shadow Account Flow)
@@ -21,6 +28,57 @@ export interface CreateAppointmentPayload {
   customer_phone: string;
   date: string;
   time_slot: string;
+  product_operator_id?: number;
+  end_time?: string;
+  notes?: string;
+}
+
+export interface CreateAppointmentResponse {
+  created: boolean;
+  appointment_id: number;
+  order_id?: number;
+  product_operator_id?: number | null;
+}
+
+export interface BookingOperator {
+  id: number;
+  alias_name: string;
+  is_active: number;
+  operator_user_id?: number;
+  internal_name?: string;
+}
+
+export interface BookingVendorStaffUser {
+  id: number;
+  label: string;
+}
+
+export interface AvailableSlot {
+  start_time?: string;
+  end_time?: string;
+  time?: string;
+  label?: string;
+  value?: string;
+}
+
+export interface VendorLocationPayload {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface AvailableSlotsResponse {
+  slots: Array<string | AvailableSlot>;
+  operators: BookingOperator[];
+  vendor_location?: VendorLocationPayload | null;
+}
+
+export interface AvailableDatesResponse {
+  disabled_dates: string[];
+  available_dates?: string[];
+  vendor_id?: number;
+  product_id?: number;
+  [key: string]: unknown;
 }
 
 export interface ScheduleHourRange {
@@ -108,23 +166,92 @@ export const bookingService = {
     return data;
   },
 
-  getAvailableSlots: async (date: string, serviceId: number) => {
+  getAvailableSlots: async (params: {
+    date: string;
+    product_id: number;
+    product_operator_id?: number;
+    operators_only?: boolean;
+    vendor_id?: number;
+    duration_minutes?: number;
+    buffer_minutes?: number;
+    slot_interval?: number;
+  }): Promise<AvailableSlotsResponse> => {
+    const requestParams = {
+      date: params.date,
+      product_id: params.product_id,
+      product_operator_id: params.product_operator_id,
+      operators_only: params.operators_only,
+      vendor_id: params.vendor_id,
+      duration_minutes: params.duration_minutes,
+      buffer_minutes: params.buffer_minutes,
+      slot_interval: params.slot_interval,
+    };
+
     const { data } = await apiClient.get(`${NAMESPACE}/available-slots`, {
-      params: { date, service_id: serviceId }
+      params: requestParams,
     });
     return data;
+  },
+
+  getAvailableDates: async (params: {
+    date_start: string;
+    date_end: string;
+    product_id?: number;
+    vendor_id?: number;
+  }): Promise<AvailableDatesResponse> => {
+    const { data } = await apiClient.get(`${NAMESPACE}/available-dates`, {
+      params,
+    });
+
+    return data;
+  },
+
+  listOperators: async (productId: number, vendorId?: number): Promise<BookingOperator[]> => {
+    const { data } = await apiClient.get(`${NAMESPACE}/operators`, {
+      params: {
+        product_id: productId,
+        vendor_id: vendorId,
+      },
+    });
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    if (Array.isArray(data?.operators)) {
+      return data.operators;
+    }
+
+    return [];
+  },
+
+  listVendorStaff: async (vendorId?: number): Promise<BookingVendorStaffUser[]> => {
+    const { data } = await apiClient.get(`${NAMESPACE}/vendor-staff`, {
+      params: vendorId ? { vendor_id: vendorId } : undefined,
+    });
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    if (Array.isArray(data?.users)) {
+      return data.users;
+    }
+
+    return [];
   },
 
   // ==========================================
   // MUTATING APPOINTMENTS
   // ==========================================
-  createAppointment: async (payload: CreateAppointmentPayload): Promise<Appointment> => {
+  createAppointment: async (payload: CreateAppointmentPayload): Promise<CreateAppointmentResponse> => {
     // TRANSLATE FRONTEND KEYS TO BACKEND EXPECTED KEYS (STEP 5 ARCHITECTURE)
     const backendPayload = {
       product_id: payload.service_id,             // Maps service_id -> product_id
       appointment_date: payload.date,             // Maps date -> appointment_date
       start_time: payload.time_slot,              // Maps time_slot -> start_time
-      end_time: payload.time_slot,                // Backend requires end_time, using start_time as fallback
+      end_time: payload.end_time || payload.time_slot, // Backend requires end_time
+      product_operator_id: payload.product_operator_id,
       
       // SEND RAW DATA FOR STEP 5: Shadow Account & Woo Order Generation
       customer_name: payload.customer_name,       
@@ -133,7 +260,7 @@ export const bookingService = {
       customer_id: 0,                             // Backend will override this after user check/creation
       vendor_id: 0,                               // Backend PHP will auto-resolve this
       status: 'pending',
-      notes: ''                                   // Removed the old hack!
+      notes: payload.notes || ''                  // Removed the old hack!
     };
 
     const { data } = await apiClient.post(`${NAMESPACE}/appointments`, backendPayload);
