@@ -392,8 +392,17 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
           return;
         }
 
-        const backendOperators = Array.isArray(response?.operators) ? response.operators : [];
-        const activeByDate = backendOperators.filter((operator) => Number(operator.is_active || 0) === 1);
+        // Handle both {operators:[...]} object and [...] array response shapes
+        const rawOperators: BookingOperator[] = Array.isArray(response?.operators)
+          ? response.operators
+          : Array.isArray(response)
+          ? (response as unknown as BookingOperator[])
+          : [];
+        // Robust is_active check: accept 1, "1", true, or "true" (backend types vary per endpoint)
+        const activeByDate = rawOperators.filter((operator) => {
+          const v: unknown = operator.is_active;
+          return v === 1 || v === '1' || v === true || v === 'true';
+        });
 
         if (activeByDate.length === 0) {
           setDateOperators([]);
