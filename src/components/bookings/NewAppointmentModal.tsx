@@ -97,6 +97,8 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
   const [isServiceMenuOpen, setIsServiceMenuOpen] = useState(false);
   const serviceDropdownRef = useRef<HTMLDivElement | null>(null);
   const initialServiceSyncRef = useRef(false);
+  const allOperatorsRef = useRef<BookingOperator[]>([]);
+  const selectedOperatorIdRef = useRef(0);
   
   const { register, handleSubmit, reset, setError: setFieldError, clearErrors, setValue, watch, formState: { errors, isSubmitting } } = useForm<BookingFormInput, unknown, BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -154,6 +156,11 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
 
     return `اپراتور #${operator.id}`;
   };
+
+  // Keep refs in sync so async callbacks can read current values without
+  // being added to useEffect dependency arrays (avoids spurious re-fetches).
+  useEffect(() => { allOperatorsRef.current = allOperators; }, [allOperators]);
+  useEffect(() => { selectedOperatorIdRef.current = selectedOperatorId; }, [selectedOperatorId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -398,26 +405,43 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
           : Array.isArray(response)
           ? (response as unknown as BookingOperator[])
           : [];
-        // Robust is_active check: accept 1, "1", true, or "true" (backend types vary per endpoint)
-        const activeByDate = rawOperators.filter((operator) => {
-          const v: unknown = operator.is_active;
-          return v === 1 || v === '1' || v === true || v === 'true';
-        });
 
-        if (activeByDate.length === 0) {
+        // Accept any truthy is_active that isn't explicitly inactive.
+        // The operators_only=true param already gates by availability on the backend,
+        // so is_active is just a secondary guard — don't reject operators whose
+        // backend uses a different truthy representation (e.g. null, undefined, 2…).
+        const isActiveOperator = (operator: BookingOperator): boolean => {
+          const v: unknown = operator.is_active;
+          return v !== 0 && v !== false && v !== '0' && v !== 'false' && v != null;
+        };
+
+        const activeByDate = rawOperators.filter(isActiveOperator);
+        // If is_active is absent on all items, fall back to the full raw list —
+        // the endpoint already returned only operators available on this date.
+        const availableOperators = activeByDate.length > 0 ? activeByDate : rawOperators;
+
+        if (availableOperators.length === 0) {
+          // Last resort: fall back to operators already fetched from /operators endpoint.
+          const fallback = allOperatorsRef.current;
+          if (fallback.length > 0) {
+            setDateOperators(fallback);
+            return;
+          }
           setDateOperators([]);
           setOperatorNotice('در تاریخ انتخاب‌شده اپراتور فعالی برای این خدمت یافت نشد.');
           setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
           return;
         }
 
-        const operatorIds = new Set(activeByDate.map((operator) => operator.id));
-        const merged = allOperators.filter((operator) => operatorIds.has(operator.id));
-        const finalOperators = merged.length > 0 ? merged : activeByDate;
+        const currentAllOperators = allOperatorsRef.current;
+        const operatorIds = new Set(availableOperators.map((operator) => operator.id));
+        const merged = currentAllOperators.filter((operator) => operatorIds.has(operator.id));
+        const finalOperators = merged.length > 0 ? merged : availableOperators;
 
         setDateOperators(finalOperators);
 
-        if (selectedOperatorId > 0 && !finalOperators.some((operator) => operator.id === selectedOperatorId)) {
+        const currentOperatorId = selectedOperatorIdRef.current;
+        if (currentOperatorId > 0 && !finalOperators.some((operator) => operator.id === currentOperatorId)) {
           setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
           setSlots([]);
           setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
@@ -441,7 +465,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     return () => {
       isMounted = false;
     };
-  }, [isOpen, selectedDateValue, selectedServiceId, allOperators, selectedOperatorId, setValue]);
+  }, [isOpen, selectedDateValue, selectedServiceId, setValue]);
 
   useEffect(() => {
     if (!isOpen || selectedServiceId <= 0 || selectedDateValue === '' || selectedOperatorId <= 0) {
