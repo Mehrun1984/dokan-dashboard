@@ -1,5 +1,22 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Variables
+
+Create a `.env.local` file in the project root and set at least:
+
+```bash
+NEXT_PUBLIC_WP_API_URL=https://your-wordpress-domain.com/wp-json
+NESHAN_API_KEY=your-neshan-api-key
+```
+
+Optional override for reverse geocoding endpoint:
+
+```bash
+NESHAN_REVERSE_GEOCODE_URL=https://api.neshan.org/v5/reverse
+```
+
+`NESHAN_API_KEY` is used only in the server route `/api/vendor/reverse-geocode` and is not exposed to client-side code.
+
 ## Getting Started
 
 First, run the development server:

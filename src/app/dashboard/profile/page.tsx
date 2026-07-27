@@ -1,12 +1,19 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { dokanService, VendorServiceAreaTerm } from '@/services/dokan.service';
 import { logoutVendor } from '@/app/actions/auth';
 import type { StoreSettings } from '@/types/dokan';
-import { Store, MapPin, UploadCloud, Link as LinkIcon, LogOut } from 'lucide-react';
+import { Store, MapPin, UploadCloud, Link as LinkIcon, LogOut, Crosshair } from 'lucide-react';
+
+const BusinessLocationMap = dynamic(() => import('@/components/profile/BusinessLocationMap'), {
+  ssr: false,
+});
+
+const TEHRAN_COORDINATES = { lat: 35.6892, lng: 51.389 };
 
 type ProfileFormValues = {
   store_name: string;
@@ -33,6 +40,10 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [serviceAreaOptions, setServiceAreaOptions] = useState<VendorServiceAreaTerm[]>([]);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const [mapCenter, setMapCenter] = useState(TEHRAN_COORDINATES);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isResolvingAddress, setIsResolvingAddress] = useState(false);
   
   // States for handling file uploads seamlessly
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -41,6 +52,19 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    setIsMapReady(true);
+  }, []);
+
+  const parseCoordinate = (input: string | undefined | null) => {
+    if (!input) {
+      return null;
+    }
+
+    const parsed = Number(input);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
 
   const fetchSettings = async () => {
     try {
@@ -64,10 +88,47 @@ export default function ProfilePage() {
       setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
       setValue('latitude', locationData.latitude ?? '');
       setValue('longitude', locationData.longitude ?? '');
+
+      const latitude = parseCoordinate(locationData.latitude);
+      const longitude = parseCoordinate(locationData.longitude);
+      if (latitude !== null && longitude !== null) {
+        const nextPoint = { lat: latitude, lng: longitude };
+        setMapCenter(nextPoint);
+        setSelectedLocation(nextPoint);
+      }
     } catch (error) {
       console.error('Failed to load profile', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUsePinnedLocation = async () => {
+    if (!selectedLocation) {
+      alert('ابتدا موقعیت را روی نقشه انتخاب کنید.');
+      return;
+    }
+
+    try {
+      setIsResolvingAddress(true);
+      const response = await dokanService.reverseGeocode({
+        latitude: String(selectedLocation.lat),
+        longitude: String(selectedLocation.lng),
+      });
+
+      setValue('latitude', response.latitude);
+      setValue('longitude', response.longitude);
+
+      if (response.address) {
+        setValue('address', response.address);
+      }
+
+      alert('مختصات و آدرس از روی پین اعمال شد.');
+    } catch (error) {
+      alert('دریافت آدرس از روی نقشه با خطا مواجه شد.');
+      console.error(error);
+    } finally {
+      setIsResolvingAddress(false);
     }
   };
 
@@ -260,6 +321,38 @@ export default function ProfilePage() {
             </select>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               برای حذف محدوده سرویس، گزینه انتخاب محدوده سرویس را انتخاب کنید.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              انتخاب موقعیت روی نقشه
+            </label>
+
+            {isMapReady ? (
+              <BusinessLocationMap
+                center={mapCenter}
+                selectedLocation={selectedLocation}
+                onLocationChange={(location) => {
+                  setSelectedLocation(location);
+                  setMapCenter(location);
+                }}
+              />
+            ) : (
+              <div className="h-72 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 animate-pulse" />
+            )}
+
+            <button
+              type="button"
+              onClick={handleUsePinnedLocation}
+              disabled={isResolvingAddress}
+              className="w-full md:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium disabled:opacity-70 transition-colors flex items-center justify-center gap-2"
+            >
+              <Crosshair size={17} />
+              {isResolvingAddress ? 'در حال دریافت آدرس...' : 'دریافت آدرس و مختصات از پین'}
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              روی نقشه کلیک کنید یا پین را جابه‌جا کنید، سپس دکمه دریافت را بزنید.
             </p>
           </div>
 

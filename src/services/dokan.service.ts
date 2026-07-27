@@ -4,6 +4,7 @@ import { DokanProduct, StoreSettings } from '@/types/dokan'; // Ensure this matc
 const INTERNAL_SETTINGS_ENDPOINT = '/api/vendor/settings';
 const INTERNAL_SERVICE_AREA_ENDPOINT = '/api/vendor/service-area';
 const INTERNAL_SERVICE_AREAS_ENDPOINT = '/api/vendor/service-areas';
+const INTERNAL_REVERSE_GEOCODE_ENDPOINT = '/api/vendor/reverse-geocode';
 
 export interface VendorServiceAreaTerm {
   id: number;
@@ -27,6 +28,17 @@ export interface UpdateVendorServiceAreaPayload {
   service_area_id?: number;
   latitude?: string;
   longitude?: string;
+}
+
+export interface ReverseGeocodePayload {
+  latitude: string;
+  longitude: string;
+}
+
+export interface ReverseGeocodeResponse {
+  latitude: string;
+  longitude: string;
+  address: string;
 }
 
 const parseInternalApiResponse = async (res: Response) => {
@@ -134,6 +146,19 @@ export const dokanService = {
   updateVendorServiceArea: async (payload: UpdateVendorServiceAreaPayload) => {
     const res = await fetch(INTERNAL_SERVICE_AREA_ENDPOINT, {
       method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+    });
+    return parseInternalApiResponse(res);
+  },
+
+  reverseGeocode: async (payload: ReverseGeocodePayload): Promise<ReverseGeocodeResponse> => {
+    const res = await fetch(INTERNAL_REVERSE_GEOCODE_ENDPOINT, {
+      method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
