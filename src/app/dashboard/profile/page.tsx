@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { dokanService, VendorServiceAreaTerm } from '@/services/dokan.service';
 import { logoutVendor } from '@/app/actions/auth';
+import type { StoreSettings } from '@/types/dokan';
 import { Store, MapPin, UploadCloud, Link as LinkIcon, LogOut } from 'lucide-react';
 
 type ProfileFormValues = {
@@ -20,6 +21,10 @@ type ProfileFormValues = {
   service_area_id: string;
   latitude: string;
   longitude: string;
+};
+
+const normalizeSocialValue = (value: unknown): string => {
+  return typeof value === 'string' ? value : '';
 };
 
 export default function ProfilePage() {
@@ -53,8 +58,8 @@ export default function ProfilePage() {
       setValue('address', settingsData.address?.street_1 ?? '');
       setValue('social.instagram', settingsData.social?.instagram ?? '');
       setValue('social.twitter', settingsData.social?.twitter ?? '');
-      setValue('social.whatsapp', settingsData.social?.whatsapp ?? '');
-      setValue('social.telegram', settingsData.social?.telegram ?? '');
+      setValue('social.whatsapp', normalizeSocialValue(settingsData.social?.whatsapp ?? settingsData.whatsapp));
+      setValue('social.telegram', normalizeSocialValue(settingsData.social?.telegram ?? settingsData.telegram));
 
       setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
       setValue('latitude', locationData.latitude ?? '');
@@ -70,6 +75,15 @@ export default function ProfilePage() {
     try {
       let avatarId = null;
       let bannerId = null;
+      const currentSettings = await dokanService.getStoreSettings();
+
+      const mergedSocial = {
+        ...(currentSettings.social ?? {}),
+        instagram: normalizeSocialValue(data.social.instagram).trim(),
+        twitter: normalizeSocialValue(data.social.twitter).trim(),
+        whatsapp: normalizeSocialValue(data.social.whatsapp).trim(),
+        telegram: normalizeSocialValue(data.social.telegram).trim(),
+      };
 
       // 1. Handle Headless Media Uploads First
       if (avatarFile) {
@@ -80,18 +94,18 @@ export default function ProfilePage() {
       }
 
       // 2. Prepare payload exactly as Dokan expects
-      const payload: any = {
+      const payload: StoreSettings = {
+        ...currentSettings,
         store_name: data.store_name,
         phone: data.phone,
         address: {
+          ...(currentSettings.address ?? {}),
           street_1: data.address,
         },
-        social: {
-          instagram: data.social.instagram,
-          twitter: data.social.twitter,
-          whatsapp: data.social.whatsapp,
-          telegram: data.social.telegram,
-        }
+        social: mergedSocial,
+        // Compatibility fallback for backends reading custom social links from root keys.
+        whatsapp: mergedSocial.whatsapp,
+        telegram: mergedSocial.telegram,
       };
 
       // Only append media IDs if new files were uploaded
@@ -109,6 +123,29 @@ export default function ProfilePage() {
           longitude: (data.longitude || '').trim(),
         }),
       ]);
+
+      const persistedSettings = await dokanService.getStoreSettings();
+      const persistedWhatsapp = normalizeSocialValue(
+        persistedSettings.social?.whatsapp ?? persistedSettings.whatsapp
+      ).trim();
+      const persistedTelegram = normalizeSocialValue(
+        persistedSettings.social?.telegram ?? persistedSettings.telegram
+      ).trim();
+
+      if (persistedWhatsapp !== mergedSocial.whatsapp || persistedTelegram !== mergedSocial.telegram) {
+        alert('تغییرات ذخیره شد، اما واتساپ یا تلگرام ذخیره نشد. لطفا تنظیمات بک‌اند را بررسی کنید.');
+        console.warn('Social persistence mismatch', {
+          submitted: {
+            whatsapp: mergedSocial.whatsapp,
+            telegram: mergedSocial.telegram,
+          },
+          persisted: {
+            whatsapp: persistedWhatsapp,
+            telegram: persistedTelegram,
+          },
+        });
+        return;
+      }
 
       alert('پروفایل با موفقیت بروزرسانی شد.');
       

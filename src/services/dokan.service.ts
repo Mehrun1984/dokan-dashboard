@@ -1,5 +1,5 @@
 import apiClient from '@/lib/axios';
-import { DokanProduct } from '@/types/dokan'; // Ensure this matches your types location
+import { DokanProduct, StoreSettings } from '@/types/dokan'; // Ensure this matches your types location
 
 const INTERNAL_SETTINGS_ENDPOINT = '/api/vendor/settings';
 const INTERNAL_SERVICE_AREA_ENDPOINT = '/api/vendor/service-area';
@@ -91,7 +91,7 @@ export const dokanService = {
   // ==========================================
   // PROFILE & SETTINGS
   // ==========================================
-  getStoreSettings: async () => {
+  getStoreSettings: async (): Promise<StoreSettings> => {
     const res = await fetch(INTERNAL_SETTINGS_ENDPOINT, {
       method: 'GET',
       credentials: 'include',
@@ -100,7 +100,7 @@ export const dokanService = {
     return parseInternalApiResponse(res);
   },
 
-  updateStoreSettings: async (settingsPayload: any) => {
+  updateStoreSettings: async (settingsPayload: StoreSettings): Promise<StoreSettings> => {
     const res = await fetch(INTERNAL_SETTINGS_ENDPOINT, {
       method: 'PUT',
       credentials: 'include',
