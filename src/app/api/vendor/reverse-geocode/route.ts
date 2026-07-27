@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const NESHAN_REVERSE_GEOCODE_URL = process.env.NESHAN_REVERSE_GEOCODE_URL ?? 'https://api.neshan.org/v5/reverse';
-const NESHAN_API_KEY = process.env.NESHAN_API_KEY;
+const NESHAN_API_KEY = "web.89984a660f2d4c178c040102d71ad703";
 
 function unauthorizedResponse() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
