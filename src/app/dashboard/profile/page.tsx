@@ -14,6 +14,8 @@ type ProfileFormValues = {
   social: {
     instagram: string;
     twitter: string;
+    whatsapp: string;
+    telegram: string;
   };
   service_area_id: string;
   latitude: string;
@@ -51,6 +53,8 @@ export default function ProfilePage() {
       setValue('address', settingsData.address?.street_1 ?? '');
       setValue('social.instagram', settingsData.social?.instagram ?? '');
       setValue('social.twitter', settingsData.social?.twitter ?? '');
+      setValue('social.whatsapp', settingsData.social?.whatsapp ?? '');
+      setValue('social.telegram', settingsData.social?.telegram ?? '');
 
       setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
       setValue('latitude', locationData.latitude ?? '');
@@ -85,6 +89,8 @@ export default function ProfilePage() {
         social: {
           instagram: data.social.instagram,
           twitter: data.social.twitter,
+          whatsapp: data.social.whatsapp,
+          telegram: data.social.telegram,
         }
       };
 
@@ -257,8 +263,12 @@ export default function ProfilePage() {
               <input dir="ltr" placeholder="https://instagram.com/..." {...register('social.instagram')} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">لینک ایکس (توییتر)</label>
-              <input dir="ltr" placeholder="https://x.com/..." {...register('social.twitter')} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">لینک واتساپ</label>
+              <input dir="ltr" placeholder="https://wa.me/..." {...register('social.whatsapp')} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">لینک تلگرام</label>
+              <input dir="ltr" placeholder="https://t.me/..." {...register('social.telegram')} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-start" />
             </div>
           </div>
         </div>
