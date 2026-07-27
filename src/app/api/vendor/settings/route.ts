@@ -97,7 +97,8 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(payload, { status: 200 });
   } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     console.error('Vendor settings proxy PUT failed', error);
-    return NextResponse.json({ error: 'Failed to update vendor settings' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update vendor settings', detail }, { status: 500 });
   }
 }
