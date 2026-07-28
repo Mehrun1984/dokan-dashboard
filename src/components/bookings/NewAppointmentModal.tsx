@@ -604,7 +604,11 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     return () => {
       isMounted = false;
     };
-  }, [isOpen, selectedDateValue, selectedServiceId, selectedOperatorId, setValue]);
+  // selectedOperatorId is intentionally excluded – it is read via selectedOperatorIdRef
+  // inside the async callback, so adding it here would cause an unnecessary operators
+  // re-fetch every time the user picks an operator.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, selectedDateValue, selectedServiceId, setValue]);
 
   useEffect(() => {
     if (!isOpen || selectedServiceId <= 0 || selectedDateValue === '' || selectedOperatorId <= 0) {

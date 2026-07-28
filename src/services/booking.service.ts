@@ -192,6 +192,11 @@ export const bookingService = {
     const { data } = await apiClient.get(`${NAMESPACE}/available-slots`, {
       params: requestParams,
     });
+    // TEMP DEBUG – remove after confirming response shape
+    if (typeof window !== 'undefined') {
+      console.debug('[bookingService] available-slots params:', requestParams);
+      console.debug('[bookingService] available-slots response:', JSON.stringify(data));
+    }
     return data;
   },
 
