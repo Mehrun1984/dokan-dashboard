@@ -499,17 +499,11 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
 
         if (normalizedSlots.length === 0) {
           setSlots([]);
-          setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
           setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
-          setSlotsNotice('برای اپراتور انتخاب‌شده در این تاریخ زمانی موجود نیست. لطفا اپراتور دیگری انتخاب کنید.');
-          setFieldError('product_operator_id', {
-            type: 'manual',
-            message: 'لطفا اپراتور دیگری انتخاب کنید.',
-          });
+          setSlotsNotice('در این تاریخ زمانی برای اپراتور انتخاب‌شده موجود نیست. لطفا تاریخ یا اپراتور دیگری انتخاب کنید.');
           return;
         }
 
-        clearErrors('product_operator_id');
         setSlots(normalizedSlots);
 
         if (!normalizedSlots.some((slot) => slot.value === selectedSlotValueRef.current)) {
@@ -540,7 +534,6 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     selectedDateValue,
     selectedOperatorId,
     clearErrors,
-    setFieldError,
     setValue,
   ]);
 
