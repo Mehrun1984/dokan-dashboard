@@ -80,6 +80,52 @@ const normalizeSlots = (rawSlots: Array<string | AvailableSlot>): NormalizedSlot
     .filter((slot): slot is NormalizedSlot => slot !== null);
 };
 
+const normalizeOperator = (operator: BookingOperator): BookingOperator => {
+  const source = operator as BookingOperator & {
+    id?: number | string;
+    operator_user_id?: number | string;
+    is_active?: number | string | boolean | null;
+  };
+
+  const parsedId = Number(source.id);
+  const parsedUserId = source.operator_user_id != null ? Number(source.operator_user_id) : NaN;
+
+  const isActiveValue: unknown = source.is_active;
+  const normalizedIsActive =
+    isActiveValue === true
+      ? 1
+      : isActiveValue === false
+      ? 0
+      : Number(isActiveValue ?? 0);
+
+  return {
+    ...operator,
+    id: Number.isFinite(parsedId) ? parsedId : 0,
+    operator_user_id: Number.isFinite(parsedUserId) && parsedUserId > 0 ? parsedUserId : undefined,
+    is_active: Number.isFinite(normalizedIsActive) ? normalizedIsActive : 0,
+  };
+};
+
+const isActiveOperator = (operator: BookingOperator): boolean => {
+  const v: unknown = operator.is_active;
+  return v !== 0 && v !== false && v !== '0' && v !== 'false' && v != null;
+};
+
+const dedupeOperatorsById = (operators: BookingOperator[]): BookingOperator[] => {
+  const seen = new Set<number>();
+  const deduped: BookingOperator[] = [];
+
+  for (const operator of operators) {
+    if (!Number.isFinite(operator.id) || operator.id <= 0 || seen.has(operator.id)) {
+      continue;
+    }
+    seen.add(operator.id);
+    deduped.push(operator);
+  }
+
+  return deduped;
+};
+
 export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<DokanProduct[]>([]);
@@ -359,7 +405,8 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
           return;
         }
 
-        setAllOperators(operators.filter((operator) => Number(operator.is_active || 0) === 1));
+        const normalizedOperators = dedupeOperatorsById(operators.map(normalizeOperator));
+        setAllOperators(normalizedOperators.filter(isActiveOperator));
       } catch (fetchError) {
         if (!isMounted) {
           return;
@@ -408,23 +455,20 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
           ? (response as unknown as BookingOperator[])
           : [];
 
+        const normalizedDateOperators = dedupeOperatorsById(rawOperators.map(normalizeOperator));
+
         // Accept any truthy is_active that isn't explicitly inactive.
         // The operators_only=true param already gates by availability on the backend,
         // so is_active is just a secondary guard — don't reject operators whose
         // backend uses a different truthy representation (e.g. null, undefined, 2…).
-        const isActiveOperator = (operator: BookingOperator): boolean => {
-          const v: unknown = operator.is_active;
-          return v !== 0 && v !== false && v !== '0' && v !== 'false' && v != null;
-        };
-
-        const activeByDate = rawOperators.filter(isActiveOperator);
+        const activeByDate = normalizedDateOperators.filter(isActiveOperator);
         // If is_active is absent on all items, fall back to the full raw list —
         // the endpoint already returned only operators available on this date.
-        const availableOperators = activeByDate.length > 0 ? activeByDate : rawOperators;
+        const availableOperators = activeByDate.length > 0 ? activeByDate : normalizedDateOperators;
 
         if (availableOperators.length === 0) {
           // Last resort: fall back to operators already fetched from /operators endpoint.
-          const fallback = allOperatorsRef.current;
+          const fallback = dedupeOperatorsById(allOperatorsRef.current);
           if (fallback.length > 0) {
             setDateOperators(fallback);
             return;
@@ -438,7 +482,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
         const currentAllOperators = allOperatorsRef.current;
         const operatorIds = new Set(availableOperators.map((operator) => operator.id));
         const merged = currentAllOperators.filter((operator) => operatorIds.has(operator.id));
-        const finalOperators = merged.length > 0 ? merged : availableOperators;
+        const finalOperators = dedupeOperatorsById(merged.length > 0 ? merged : availableOperators);
 
         setDateOperators(finalOperators);
 
@@ -467,7 +511,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     return () => {
       isMounted = false;
     };
-  }, [isOpen, selectedDateValue, selectedServiceId, setValue]);
+  }, [isOpen, selectedDateValue, selectedServiceId, selectedOperatorId, setValue]);
 
   useEffect(() => {
     if (!isOpen || selectedServiceId <= 0 || selectedDateValue === '' || selectedOperatorId <= 0) {
@@ -533,7 +577,6 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     selectedServiceId,
     selectedDateValue,
     selectedOperatorId,
-    clearErrors,
     setValue,
   ]);
 
