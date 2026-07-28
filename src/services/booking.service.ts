@@ -170,6 +170,7 @@ export const bookingService = {
     date: string;
     product_id: number;
     product_operator_id?: number;
+    operator_id?: number;
     operators_only?: boolean;
     vendor_id?: number;
     duration_minutes?: number;
@@ -180,6 +181,7 @@ export const bookingService = {
       date: params.date,
       product_id: params.product_id,
       product_operator_id: params.product_operator_id,
+      operator_id: params.operator_id ?? params.product_operator_id,
       operators_only: params.operators_only,
       vendor_id: params.vendor_id,
       duration_minutes: params.duration_minutes,

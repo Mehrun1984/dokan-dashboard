@@ -44,8 +44,88 @@ const formatTime = (timeValue: string): string => {
     return '--:--';
   }
 
+  const timeMatch = raw.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (timeMatch) {
+    const hour = String(timeMatch[1]).padStart(2, '0');
+    const minute = timeMatch[2];
+    return `${hour}:${minute}`;
+  }
+
   const match = raw.match(/^(\d{2}:\d{2})/);
   return match ? match[1] : raw;
+};
+
+const extractOperatorsFromResponse = (response: unknown): BookingOperator[] => {
+  if (response && typeof response === 'object') {
+    const obj = response as Record<string, unknown>;
+    if (Array.isArray(obj.operators)) {
+      return obj.operators as BookingOperator[];
+    }
+
+    const dataObj = obj.data as Record<string, unknown> | undefined;
+    if (dataObj && Array.isArray(dataObj.operators)) {
+      return dataObj.operators as BookingOperator[];
+    }
+
+    const payloadObj = obj.payload as Record<string, unknown> | undefined;
+    if (payloadObj && Array.isArray(payloadObj.operators)) {
+      return payloadObj.operators as BookingOperator[];
+    }
+  }
+
+  return Array.isArray(response) ? (response as BookingOperator[]) : [];
+};
+
+const extractSlotsFromResponse = (response: unknown): Array<string | AvailableSlot> => {
+  if (response && typeof response === 'object') {
+    const obj = response as Record<string, unknown>;
+    if (Array.isArray(obj.slots)) {
+      return obj.slots as Array<string | AvailableSlot>;
+    }
+    if (Array.isArray(obj.time_slots)) {
+      return obj.time_slots as Array<string | AvailableSlot>;
+    }
+    if (Array.isArray(obj.timeslots)) {
+      return obj.timeslots as Array<string | AvailableSlot>;
+    }
+    if (Array.isArray(obj.available_slots)) {
+      return obj.available_slots as Array<string | AvailableSlot>;
+    }
+
+    const dataObj = obj.data as Record<string, unknown> | undefined;
+    if (dataObj) {
+      if (Array.isArray(dataObj.slots)) {
+        return dataObj.slots as Array<string | AvailableSlot>;
+      }
+      if (Array.isArray(dataObj.time_slots)) {
+        return dataObj.time_slots as Array<string | AvailableSlot>;
+      }
+      if (Array.isArray(dataObj.timeslots)) {
+        return dataObj.timeslots as Array<string | AvailableSlot>;
+      }
+      if (Array.isArray(dataObj.available_slots)) {
+        return dataObj.available_slots as Array<string | AvailableSlot>;
+      }
+    }
+
+    const payloadObj = obj.payload as Record<string, unknown> | undefined;
+    if (payloadObj) {
+      if (Array.isArray(payloadObj.slots)) {
+        return payloadObj.slots as Array<string | AvailableSlot>;
+      }
+      if (Array.isArray(payloadObj.time_slots)) {
+        return payloadObj.time_slots as Array<string | AvailableSlot>;
+      }
+      if (Array.isArray(payloadObj.timeslots)) {
+        return payloadObj.timeslots as Array<string | AvailableSlot>;
+      }
+      if (Array.isArray(payloadObj.available_slots)) {
+        return payloadObj.available_slots as Array<string | AvailableSlot>;
+      }
+    }
+  }
+
+  return Array.isArray(response) ? (response as Array<string | AvailableSlot>) : [];
 };
 
 const normalizeSlots = (rawSlots: Array<string | AvailableSlot>): NormalizedSlot[] => {
@@ -61,10 +141,27 @@ const normalizeSlots = (rawSlots: Array<string | AvailableSlot>): NormalizedSlot
         };
       }
 
-      const start = formatTime((slot.start_time as string) || (slot.time as string) || (slot.value as string) || '');
-      const end = formatTime((slot.end_time as string) || start);
-      const value = formatTime((slot.value as string) || start);
-      const label = String(slot.label || `${start} - ${end}`);
+      const slotObj = slot as Record<string, unknown>;
+      const startRaw =
+        (slotObj.start_time as string) ||
+        (slotObj.start as string) ||
+        (slotObj.startTime as string) ||
+        (slotObj.time as string) ||
+        (slotObj.from as string) ||
+        (slotObj.slot as string) ||
+        (slotObj.value as string) ||
+        '';
+      const endRaw =
+        (slotObj.end_time as string) ||
+        (slotObj.end as string) ||
+        (slotObj.endTime as string) ||
+        (slotObj.to as string) ||
+        (slotObj.value as string) ||
+        '';
+      const start = formatTime(startRaw);
+      const end = formatTime(endRaw || start);
+      const value = formatTime((slotObj.value as string) || startRaw || '');
+      const label = String((slotObj.label as string) || `${start} - ${end}`);
 
       if (value === '--:--' || start === '--:--') {
         return null;
@@ -449,11 +546,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
         }
 
         // Handle both {operators:[...]} object and [...] array response shapes
-        const rawOperators: BookingOperator[] = Array.isArray(response?.operators)
-          ? response.operators
-          : Array.isArray(response)
-          ? (response as unknown as BookingOperator[])
-          : [];
+        const rawOperators = extractOperatorsFromResponse(response);
 
         const normalizedDateOperators = dedupeOperatorsById(rawOperators.map(normalizeOperator));
 
@@ -528,17 +621,14 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
           date: selectedDateValue,
           product_id: selectedServiceId,
           product_operator_id: selectedOperatorId,
+          operator_id: selectedOperatorId,
         });
 
         if (!isMounted) {
           return;
         }
 
-        const rawSlots: Array<string | AvailableSlot> = Array.isArray(response?.slots)
-          ? response.slots
-          : Array.isArray(response)
-          ? (response as unknown as Array<string | AvailableSlot>)
-          : [];
+        const rawSlots = extractSlotsFromResponse(response);
         const normalizedSlots = normalizeSlots(rawSlots);
 
         if (normalizedSlots.length === 0) {
