@@ -99,6 +99,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
   const initialServiceSyncRef = useRef(false);
   const allOperatorsRef = useRef<BookingOperator[]>([]);
   const selectedOperatorIdRef = useRef(0);
+  const selectedSlotValueRef = useRef('');
   
   const { register, handleSubmit, reset, setError: setFieldError, clearErrors, setValue, watch, formState: { errors, isSubmitting } } = useForm<BookingFormInput, unknown, BookingFormData>({
     resolver: zodResolver(bookingSchema),
@@ -161,6 +162,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
   // being added to useEffect dependency arrays (avoids spurious re-fetches).
   useEffect(() => { allOperatorsRef.current = allOperators; }, [allOperators]);
   useEffect(() => { selectedOperatorIdRef.current = selectedOperatorId; }, [selectedOperatorId]);
+  useEffect(() => { selectedSlotValueRef.current = selectedSlotValue; }, [selectedSlotValue]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -488,7 +490,12 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
           return;
         }
 
-        const normalizedSlots = normalizeSlots(Array.isArray(response?.slots) ? response.slots : []);
+        const rawSlots: Array<string | AvailableSlot> = Array.isArray(response?.slots)
+          ? response.slots
+          : Array.isArray(response)
+          ? (response as unknown as Array<string | AvailableSlot>)
+          : [];
+        const normalizedSlots = normalizeSlots(rawSlots);
 
         if (normalizedSlots.length === 0) {
           setSlots([]);
@@ -505,7 +512,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
         clearErrors('product_operator_id');
         setSlots(normalizedSlots);
 
-        if (!normalizedSlots.some((slot) => slot.value === selectedSlotValue)) {
+        if (!normalizedSlots.some((slot) => slot.value === selectedSlotValueRef.current)) {
           setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
         }
       } catch (fetchError) {
@@ -532,7 +539,6 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     selectedServiceId,
     selectedDateValue,
     selectedOperatorId,
-    selectedSlotValue,
     clearErrors,
     setFieldError,
     setValue,
