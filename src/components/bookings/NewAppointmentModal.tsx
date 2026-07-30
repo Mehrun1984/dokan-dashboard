@@ -289,14 +289,6 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
 
    const aliasAndInternal = alias && internalName ? `${alias} - ${internalName}` : alias || internalName;
 
-   if (staffLabel && aliasAndInternal) {
-     return `${staffLabel} | ${aliasAndInternal}`;
-   }
-
-   if (staffLabel) {
-     return staffLabel;
-   }
-
    if (aliasAndInternal) {
      return aliasAndInternal;
    }
