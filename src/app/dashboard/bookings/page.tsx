@@ -81,7 +81,12 @@ const extractDate = (apt: any) => formatJalaliDate(apt.appointment_date || apt.d
 const extractTime = (apt: any) => (apt.start_time || apt.time_slot ? (apt.start_time || apt.time_slot).substring(0, 5) : '--:--');
 const extractOperator = (apt: any) => {
   const alias = String(apt?.operator_alias || '').trim();
+  const internalName = String(apt?.operator_internal_name || '').trim();
   const operatorId = Number(apt?.operator_id || apt?.product_operator_id || 0);
+
+  if (alias && internalName) {
+    return `${alias} - ${internalName}`;
+  }
 
   if (alias) {
     return alias;

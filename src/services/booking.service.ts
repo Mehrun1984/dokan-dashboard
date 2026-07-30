@@ -17,6 +17,7 @@ export interface Appointment {
   end_time?: string;
   notes?: string;
   operator_alias?: string;
+  operator_internal_name?: string;
   operator_id?: number;
   product_operator_id?: number;
 }

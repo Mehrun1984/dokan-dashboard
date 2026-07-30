@@ -284,21 +284,24 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
   const getOperatorDisplayLabel = (operator: BookingOperator) => {
     const fullOperator = allOperatorsById.get(operator.id) || operator;
     const staffLabel = fullOperator.operator_user_id ? staffLabelById.get(fullOperator.operator_user_id) : '';
-    const alias = String(fullOperator.alias_name || operator.alias_name || '').trim();
+   const alias = String(fullOperator.alias_name || operator.alias_name || '').trim();
+   const internalName = String(fullOperator.internal_name || operator.internal_name || '').trim();
 
-    if (staffLabel && alias) {
-      return `${staffLabel} | ${alias}`;
-    }
+   const aliasAndInternal = alias && internalName ? `${alias} - ${internalName}` : alias || internalName;
 
-    if (staffLabel) {
-      return staffLabel;
-    }
+   if (staffLabel && aliasAndInternal) {
+     return `${staffLabel} | ${aliasAndInternal}`;
+   }
 
-    if (alias) {
-      return alias;
-    }
+   if (staffLabel) {
+     return staffLabel;
+   }
 
-    return `اپراتور #${operator.id}`;
+   if (aliasAndInternal) {
+     return aliasAndInternal;
+   }
+
+   return `اپراتور #${operator.id}`;
   };
 
   // Keep refs in sync so async callbacks can read current values without
