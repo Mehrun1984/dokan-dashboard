@@ -313,28 +313,38 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
       try {
         setIsProductsLoading(true);
         setProductsError(null);
-        const [productsResponse, staffResponse] = await Promise.all([
-          dokanService.getProducts(),
-          bookingService.listVendorStaff(),
-        ]);
+        const productsResponse = await dokanService.getProducts();
 
         if (!isMounted) {
           return;
         }
 
         setProducts(Array.isArray(productsResponse) ? productsResponse : []);
-        setStaffUsers(Array.isArray(staffResponse) ? staffResponse : []);
       } catch (err) {
         if (!isMounted) {
           return;
         }
         setProducts([]);
-        setStaffUsers([]);
         setProductsError('دریافت خدمات/محصولات ناموفق بود. لطفا دوباره تلاش کنید.');
-      } finally {
-        if (isMounted) {
-          setIsProductsLoading(false);
+      }
+
+      try {
+        const staffResponse = await bookingService.listVendorStaff();
+
+        if (!isMounted) {
+          return;
         }
+
+        setStaffUsers(Array.isArray(staffResponse) ? staffResponse : []);
+      } catch (err) {
+        if (!isMounted) {
+          return;
+        }
+        setStaffUsers([]);
+      }
+
+      if (isMounted) {
+        setIsProductsLoading(false);
       }
     };
 
