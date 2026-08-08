@@ -1,6 +1,7 @@
 export type CampaignStatus = 'draft' | 'pending' | 'sent' | 'failed' | 'cancelled';
 export type CampaignMode = 'customer_list' | 'location';
 export type CampaignChannel = 'sms' | 'bale' | 'telegram' | 'whatsapp';
+export type CampaignLinkType = 'service' | 'category';
 
 export interface Campaign {
   id: number;
@@ -13,6 +14,8 @@ export interface Campaign {
   created_at: string;
   recipients_count?: number;
   delivered_count?: number;
+  link_type?: CampaignLinkType;
+  link_target_id?: number;
   location_lat?: number;
   location_lng?: number;
   location_radius?: number;
@@ -40,8 +43,9 @@ export interface CreateCampaignPayload {
   name: string;
   mode: CampaignMode;
   channels: CampaignChannel[];
-  message?: string;
-  template_id?: number;
+  template_id: number;
+  link_type: CampaignLinkType;
+  link_target_id: number;
   // customer_list mode
   customer_ids?: number[];
   // location mode

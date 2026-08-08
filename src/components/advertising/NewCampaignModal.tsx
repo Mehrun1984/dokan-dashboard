@@ -9,7 +9,15 @@ import {
   getCustomers,
   getTemplates,
 } from '@/services/bulkMessaging.service';
-import type { BulkCustomer, CampaignChannel, CampaignMode, MessageTemplate } from '@/types/bulkMessaging';
+import { dokanService } from '@/services/dokan.service';
+import type {
+  BulkCustomer,
+  CampaignChannel,
+  CampaignLinkType,
+  CampaignMode,
+  MessageTemplate,
+} from '@/types/bulkMessaging';
+import type { Category, DokanProduct } from '@/types/dokan';
 
 const BusinessLocationMap = dynamic(
   () => import('@/components/profile/BusinessLocationMap'),
@@ -21,6 +29,11 @@ const CHANNELS: { value: CampaignChannel; label: string }[] = [
   { value: 'bale', label: 'بله (Bale)' },
   { value: 'telegram', label: 'تلگرام' },
   { value: 'whatsapp', label: 'واتساپ' },
+];
+
+const LINK_TYPES: { value: CampaignLinkType; label: string }[] = [
+  { value: 'service', label: 'خدمت / محصول' },
+  { value: 'category', label: 'دسته‌بندی' },
 ];
 
 interface LatLng { lat: number; lng: number }
@@ -35,9 +48,9 @@ interface FormData {
   selectedCustomerIds: number[];
   location: LatLng | null;
   radius: number;
-  useTemplate: boolean;
   templateId: number | null;
-  message: string;
+  linkType: CampaignLinkType;
+  linkTargetId: number | null;
 }
 
 const initialForm: FormData = {
@@ -47,9 +60,9 @@ const initialForm: FormData = {
   selectedCustomerIds: [],
   location: null,
   radius: 5,
-  useTemplate: false,
   templateId: null,
-  message: '',
+  linkType: 'service',
+  linkTargetId: null,
 };
 
 interface Props {
@@ -63,8 +76,10 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const [form, setForm] = useState<FormData>(initialForm);
   const [customers, setCustomers] = useState<BulkCustomer[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [products, setProducts] = useState<DokanProduct[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -87,13 +102,19 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     }
   }, [isOpen, step, form.mode, customers.length]);
 
-  // Fetch templates when entering step 3
+  // Fetch templates + products/categories together when entering step 3
   useEffect(() => {
     if (isOpen && step === 3 && templates.length === 0) {
-      setIsLoadingTemplates(true);
-      getTemplates()
-        .then(setTemplates)
-        .finally(() => setIsLoadingTemplates(false));
+      setIsLoadingResources(true);
+      Promise.all([getTemplates(), dokanService.getProducts()])
+        .then(([tmpl, prods]) => {
+          setTemplates(tmpl);
+          setProducts(prods);
+          const catMap = new Map<number, Category>();
+          prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
+          setCategories(Array.from(catMap.values()));
+        })
+        .finally(() => setIsLoadingResources(false));
     }
   }, [isOpen, step, templates.length]);
 
@@ -117,17 +138,13 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     });
   };
 
-  // Per-step validation
   const canGoNext = (): boolean => {
     if (step === 1) return form.name.trim().length > 0 && form.channels.length > 0;
     if (step === 2) {
       if (form.mode === 'customer_list') return form.selectedCustomerIds.length > 0;
       return form.location !== null;
     }
-    if (step === 3) {
-      if (form.useTemplate) return form.templateId !== null;
-      return form.message.trim().length > 0;
-    }
+    if (step === 3) return form.templateId !== null && form.linkTargetId !== null;
     return true;
   };
 
@@ -135,13 +152,13 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const selectedTemplate = templates.find((t) => t.id === form.templateId);
       const campaign = await createCampaign({
         name: form.name,
         mode: form.mode,
         channels: form.channels,
-        message: form.useTemplate ? selectedTemplate?.body : form.message,
-        template_id: form.useTemplate ? (form.templateId ?? undefined) : undefined,
+        template_id: form.templateId!,
+        link_type: form.linkType,
+        link_target_id: form.linkTargetId!,
         customer_ids: form.mode === 'customer_list' ? form.selectedCustomerIds : undefined,
         location_lat: form.mode === 'location' ? form.location?.lat : undefined,
         location_lng: form.mode === 'location' ? form.location?.lng : undefined,
@@ -327,44 +344,29 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     </div>
   );
 
-  const renderStep3 = () => (
-    <div className="space-y-4">
-      {/* Toggle custom / template */}
-      <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => patch({ useTemplate: false })}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-            !form.useTemplate
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
-          }`}
-        >
-          متن دلخواه
-        </button>
-        <button
-          type="button"
-          onClick={() => patch({ useTemplate: true })}
-          className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-            form.useTemplate
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
-          }`}
-        >
-          از قالب
-        </button>
-      </div>
+  const renderStep3 = () => {
+    const targetOptions =
+      form.linkType === 'service'
+        ? products.map((p) => ({ id: p.id, label: p.name }))
+        : categories.map((c) => ({ id: c.id, label: c.name }));
 
-      {form.useTemplate ? (
+    return (
+      <div className="space-y-5">
+        {/* Template selection */}
         <div>
-          {isLoadingTemplates ? (
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            قالب پیام <span className="text-red-500">*</span>
+          </label>
+          {isLoadingResources ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : templates.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">هیچ قالبی تعریف نشده است.</p>
+            <p className="text-sm text-gray-500 text-center py-6 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              هیچ قالبی تعریف نشده است.
+            </p>
           ) : (
-            <div className="space-y-2 max-h-60 overflow-y-auto">
+            <div className="space-y-2 max-h-44 overflow-y-auto">
               {templates.map((t) => (
                 <button
                   key={t.id}
@@ -387,17 +389,62 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             </div>
           )}
         </div>
-      ) : (
-        <textarea
-          value={form.message}
-          onChange={(e) => patch({ message: e.target.value })}
-          rows={5}
-          placeholder="متن پیام خود را وارد کنید..."
-          className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 resize-none"
-        />
-      )}
-    </div>
-  );
+
+        {/* نوع لینک */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            نوع لینک <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            {LINK_TYPES.map((lt) => (
+              <button
+                key={lt.value}
+                type="button"
+                onClick={() => patch({ linkType: lt.value, linkTargetId: null })}
+                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                  form.linkType === lt.value
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                }`}
+              >
+                {lt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* هدف لینک */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {form.linkType === 'service' ? 'انتخاب خدمت / محصول' : 'انتخاب دسته‌بندی'}{' '}
+            <span className="text-red-500">*</span>
+          </label>
+          {isLoadingResources ? (
+            <div className="h-12 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
+          ) : targetOptions.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              موردی یافت نشد.
+            </p>
+          ) : (
+            <select
+              value={form.linkTargetId ?? ''}
+              onChange={(e) =>
+                patch({ linkTargetId: e.target.value ? Number(e.target.value) : null })
+              }
+              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+            >
+              <option value="">انتخاب کنید...</option>
+              {targetOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderStep4 = () => {
     const selectedTemplate = templates.find((t) => t.id === form.templateId);
@@ -405,6 +452,12 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     const channelLabels = form.channels
       .map((ch) => CHANNELS.find((c) => c.value === ch)?.label ?? ch)
       .join('، ');
+    const linkTypeLabel = LINK_TYPES.find((lt) => lt.value === form.linkType)?.label ?? form.linkType;
+    const targetOptions =
+      form.linkType === 'service'
+        ? products.map((p) => ({ id: p.id, label: p.name }))
+        : categories.map((c) => ({ id: c.id, label: c.name }));
+    const targetLabel = targetOptions.find((o) => o.id === form.linkTargetId)?.label ?? String(form.linkTargetId);
 
     return (
       <div className="space-y-4">
@@ -438,10 +491,18 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
               </dd>
             </div>
           )}
+          <div className="flex justify-between text-sm">
+            <dt className="text-gray-500">نوع لینک</dt>
+            <dd className="font-medium text-gray-900 dark:text-gray-100">{linkTypeLabel}</dd>
+          </div>
+          <div className="flex justify-between text-sm">
+            <dt className="text-gray-500">هدف لینک</dt>
+            <dd className="font-medium text-gray-900 dark:text-gray-100">{targetLabel}</dd>
+          </div>
           <div className="text-sm">
-            <dt className="text-gray-500 mb-1">پیام</dt>
+            <dt className="text-gray-500 mb-1">قالب پیام</dt>
             <dd className="bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-pre-wrap text-sm">
-              {form.useTemplate ? (selectedTemplate?.body ?? '—') : form.message}
+              {selectedTemplate?.body ?? '—'}
             </dd>
           </div>
         </dl>
@@ -455,7 +516,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     );
   };
 
-  const stepTitles = ['اطلاعات پایه', 'مخاطبان', 'پیام', 'تأیید نهایی'];
+  const stepTitles = ['اطلاعات پایه', 'مخاطبان', 'پیام و لینک', 'تأیید نهایی'];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
