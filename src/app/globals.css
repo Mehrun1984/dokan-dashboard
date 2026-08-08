@@ -18,3 +18,14 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* Keep Leaflet layers behind app-level fixed/sticky UI on mobile. */
+.leaflet-container {
+  z-index: 0;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 10;
+}

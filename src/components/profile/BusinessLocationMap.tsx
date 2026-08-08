@@ -54,7 +54,7 @@ export default function BusinessLocationMap({
     <MapContainer
       center={center}
       zoom={14}
-      className="h-72 w-full rounded-xl border border-gray-200 dark:border-gray-700"
+      className="relative z-0 h-72 w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700"
       scrollWheelZoom
     >
       <TileLayer
