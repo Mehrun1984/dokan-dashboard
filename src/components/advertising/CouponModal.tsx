@@ -61,6 +61,16 @@ function parseNormalizedNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function toLocalDayEndIso(dateInput: string): string | undefined {
+  if (!dateInput) return undefined;
+  const date = new Date(`${dateInput}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}T23:59:59`;
+}
+
 const schema = z.object({
   code: z.string().trim().min(1, 'کد کوپن الزامی است'),
   discount_type: z.enum(['percent', 'fixed_cart']),
@@ -152,9 +162,12 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
     register,
     handleSubmit,
     reset,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       code: '',
       discount_type: 'percent',
@@ -168,6 +181,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
   useEffect(() => {
     if (!isOpen) {
       reset();
+      clearErrors();
       return;
     }
     if (editingCoupon) {
@@ -179,6 +193,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
         usage_limit: editingCoupon.usage_limit ? String(editingCoupon.usage_limit) : '',
         date_expires: toDateInputValue(editingCoupon.date_expires),
       });
+      clearErrors();
       return;
     }
     reset({
@@ -189,7 +204,8 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
       usage_limit: '',
       date_expires: '',
     });
-  }, [isOpen, editingCoupon, reset]);
+    clearErrors();
+  }, [isOpen, editingCoupon, reset, clearErrors]);
 
   if (!isOpen) return null;
 
@@ -204,7 +220,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
       amount: normalizedAmount,
       minimum_amount: normalizedMinimumAmount || undefined,
       usage_limit: normalizedUsageLimit ? Number(normalizedUsageLimit) : undefined,
-      date_expires: data.date_expires ? `${data.date_expires}T23:59:59` : undefined,
+      date_expires: toLocalDayEndIso(data.date_expires ?? '') ?? undefined,
     };
 
     if (isEdit) {
@@ -250,7 +266,9 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                 کد کوپن <span className="text-red-500">*</span>
               </label>
               <input
-                {...register('code')}
+                {...register('code', {
+                  setValueAs: (value) => String(value ?? '').replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim(),
+                })}
                 type="text"
                 dir="ltr"
                 placeholder="SUMMER20"
@@ -278,7 +296,9 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                   مقدار <span className="text-red-500">*</span>
                 </label>
                 <input
-                  {...register('amount')}
+                  {...register('amount', {
+                    setValueAs: (value) => normalizeNumericInput(String(value ?? '')),
+                  })}
                   type="text"
                   inputMode="decimal"
                   dir="ltr"
@@ -295,7 +315,9 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                   حداقل خرید
                 </label>
                 <input
-                  {...register('minimum_amount')}
+                  {...register('minimum_amount', {
+                    setValueAs: (value) => normalizeNumericInput(String(value ?? '')),
+                  })}
                   type="text"
                   inputMode="decimal"
                   dir="ltr"
@@ -312,7 +334,9 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                   محدودیت استفاده
                 </label>
                 <input
-                  {...register('usage_limit')}
+                  {...register('usage_limit', {
+                    setValueAs: (value) => normalizeNumericInput(String(value ?? '')),
+                  })}
                   type="text"
                   inputMode="numeric"
                   dir="ltr"
