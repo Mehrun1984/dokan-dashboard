@@ -7,23 +7,123 @@ import { z } from 'zod';
 import { X } from 'lucide-react';
 import type { CreateCouponPayload, DokanCoupon, UpdateCouponPayload } from '@/types/dokan';
 
+const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+
+function normalizeDigits(value: string): string {
+  return value
+    .split('')
+    .map((char) => {
+      const persianIndex = PERSIAN_DIGITS.indexOf(char);
+      if (persianIndex >= 0) return String(persianIndex);
+
+      const arabicIndex = ARABIC_DIGITS.indexOf(char);
+      if (arabicIndex >= 0) return String(arabicIndex);
+
+      return char;
+    })
+    .join('');
+}
+
+function normalizeNumericInput(raw: string): string {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return '';
+
+  let value = normalizeDigits(trimmed)
+    .replace(/[\u200E\u200F\u202A-\u202E\u00A0\s]/g, '')
+    .replace(/٬/g, '')
+    .replace(/٫/g, '.');
+
+  value = value.replace(/،/g, ',');
+  const commaCount = (value.match(/,/g) || []).length;
+
+  if (commaCount > 0) {
+    if (value.includes('.')) {
+      value = value.replace(/,/g, '');
+    } else if (commaCount === 1) {
+      const [leftPart = '', rightPart = ''] = value.split(',');
+      if (/^\d+$/.test(leftPart) && /^\d+$/.test(rightPart) && rightPart.length > 0 && rightPart.length <= 2) {
+        value = `${leftPart}.${rightPart}`;
+      } else {
+        value = value.replace(/,/g, '');
+      }
+    } else {
+      value = value.replace(/,/g, '');
+    }
+  }
+
+  return value;
+}
+
+function parseNormalizedNumber(value: string): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const schema = z.object({
   code: z.string().trim().min(1, 'کد کوپن الزامی است'),
   discount_type: z.enum(['percent', 'fixed_cart']),
-  amount: z.string().trim().min(1, 'مقدار تخفیف الزامی است').refine((val) => Number(val) > 0, {
-    message: 'مقدار تخفیف باید بزرگتر از صفر باشد',
-  }),
-  minimum_amount: z.string().trim().optional().refine((val) => !val || Number(val) >= 0, {
-    message: 'حداقل خرید نمی تواند منفی باشد',
-  }),
-  usage_limit: z.string().trim().optional().refine((val) => !val || Number(val) > 0, {
-    message: 'محدودیت استفاده باید بزرگتر از صفر باشد',
-  }),
+  amount: z
+    .string()
+    .trim()
+    .min(1, 'مقدار تخفیف الزامی است')
+    .refine((val) => {
+      const parsed = parseNormalizedNumber(normalizeNumericInput(val));
+      return parsed !== null;
+    }, {
+      message: 'فرمت مقدار تخفیف معتبر نیست',
+    })
+    .refine((val) => {
+      const parsed = parseNormalizedNumber(normalizeNumericInput(val));
+      return parsed !== null && parsed > 0;
+    }, {
+      message: 'مقدار تخفیف باید بزرگتر از صفر باشد',
+    }),
+  minimum_amount: z
+    .string()
+    .optional()
+    .refine((val) => {
+      const normalized = normalizeNumericInput(val ?? '');
+      if (!normalized) return true;
+      return parseNormalizedNumber(normalized) !== null;
+    }, {
+      message: 'فرمت حداقل خرید معتبر نیست',
+    })
+    .refine((val) => {
+      const normalized = normalizeNumericInput(val ?? '');
+      if (!normalized) return true;
+      const parsed = parseNormalizedNumber(normalized);
+      return parsed !== null && parsed >= 0;
+    }, {
+      message: 'حداقل خرید نمی تواند منفی باشد',
+    }),
+  usage_limit: z
+    .string()
+    .optional()
+    .refine((val) => {
+      const normalized = normalizeNumericInput(val ?? '');
+      if (!normalized) return true;
+      const parsed = parseNormalizedNumber(normalized);
+      return parsed !== null && Number.isInteger(parsed);
+    }, {
+      message: 'محدودیت استفاده باید عدد صحیح باشد',
+    })
+    .refine((val) => {
+      const normalized = normalizeNumericInput(val ?? '');
+      if (!normalized) return true;
+      const parsed = parseNormalizedNumber(normalized);
+      return parsed !== null && parsed > 0;
+    }, {
+      message: 'محدودیت استفاده باید بزرگتر از صفر باشد',
+    }),
   date_expires: z.string().optional().refine((val) => {
     if (!val) return true;
-    const picked = new Date(`${val}T23:59:59`);
-    const now = new Date();
-    return picked.getTime() >= now.getTime();
+    const picked = new Date(`${val}T00:00:00`);
+    if (Number.isNaN(picked.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return picked.getTime() >= today.getTime();
   }, 'تاریخ انقضا نباید در گذشته باشد'),
 });
 
@@ -94,12 +194,16 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
   if (!isOpen) return null;
 
   const submitHandler = async (data: FormData) => {
+    const normalizedCode = data.code.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim().toUpperCase();
+    const normalizedAmount = normalizeNumericInput(data.amount);
+    const normalizedMinimumAmount = normalizeNumericInput(data.minimum_amount ?? '');
+    const normalizedUsageLimit = normalizeNumericInput(data.usage_limit ?? '');
     const basePayload = {
-      code: data.code.trim().toUpperCase(),
+      code: normalizedCode,
       discount_type: data.discount_type,
-      amount: data.amount.trim(),
-      minimum_amount: data.minimum_amount?.trim() || undefined,
-      usage_limit: data.usage_limit ? Number(data.usage_limit) : undefined,
+      amount: normalizedAmount,
+      minimum_amount: normalizedMinimumAmount || undefined,
+      usage_limit: normalizedUsageLimit ? Number(normalizedUsageLimit) : undefined,
       date_expires: data.date_expires ? `${data.date_expires}T23:59:59` : undefined,
     };
 
@@ -175,9 +279,8 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                 </label>
                 <input
                   {...register('amount')}
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   dir="ltr"
                   placeholder="10"
                   className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
@@ -193,9 +296,8 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                 </label>
                 <input
                   {...register('minimum_amount')}
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   dir="ltr"
                   placeholder="0"
                   className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
@@ -211,9 +313,8 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                 </label>
                 <input
                   {...register('usage_limit')}
-                  type="number"
-                  min="1"
-                  step="1"
+                  type="text"
+                  inputMode="numeric"
                   dir="ltr"
                   placeholder="100"
                   className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
