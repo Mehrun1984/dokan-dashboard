@@ -162,7 +162,6 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
     register,
     handleSubmit,
     reset,
-    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -181,7 +180,6 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
   useEffect(() => {
     if (!isOpen) {
       reset();
-      clearErrors();
       return;
     }
     if (editingCoupon) {
@@ -193,7 +191,6 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
         usage_limit: editingCoupon.usage_limit ? String(editingCoupon.usage_limit) : '',
         date_expires: toDateInputValue(editingCoupon.date_expires),
       });
-      clearErrors();
       return;
     }
     reset({
@@ -204,8 +201,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
       usage_limit: '',
       date_expires: '',
     });
-    clearErrors();
-  }, [isOpen, editingCoupon, reset, clearErrors]);
+  }, [isOpen, editingCoupon, reset]);
 
   if (!isOpen) return null;
 
@@ -266,9 +262,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                 کد کوپن <span className="text-red-500">*</span>
               </label>
               <input
-                {...register('code', {
-                  setValueAs: (value) => String(value ?? '').replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim(),
-                })}
+                {...register('code')}
                 type="text"
                 dir="ltr"
                 placeholder="SUMMER20"
@@ -296,9 +290,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                   مقدار <span className="text-red-500">*</span>
                 </label>
                 <input
-                  {...register('amount', {
-                    setValueAs: (value) => normalizeNumericInput(String(value ?? '')),
-                  })}
+                  {...register('amount')}
                   type="text"
                   inputMode="decimal"
                   dir="ltr"
@@ -315,9 +307,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                   حداقل خرید
                 </label>
                 <input
-                  {...register('minimum_amount', {
-                    setValueAs: (value) => normalizeNumericInput(String(value ?? '')),
-                  })}
+                  {...register('minimum_amount')}
                   type="text"
                   inputMode="decimal"
                   dir="ltr"
@@ -334,9 +324,7 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
                   محدودیت استفاده
                 </label>
                 <input
-                  {...register('usage_limit', {
-                    setValueAs: (value) => normalizeNumericInput(String(value ?? '')),
-                  })}
+                  {...register('usage_limit')}
                   type="text"
                   inputMode="numeric"
                   dir="ltr"
