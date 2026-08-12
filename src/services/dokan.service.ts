@@ -1,5 +1,11 @@
 import apiClient from '@/lib/axios';
-import { DokanProduct, StoreSettings } from '@/types/dokan'; // Ensure this matches your types location
+import {
+  CreateCouponPayload,
+  DokanCoupon,
+  DokanProduct,
+  StoreSettings,
+  UpdateCouponPayload,
+} from '@/types/dokan'; // Ensure this matches your types location
 
 const INTERNAL_SETTINGS_ENDPOINT = '/api/vendor/settings';
 const INTERNAL_SERVICE_AREA_ENDPOINT = '/api/vendor/service-area';
@@ -212,5 +218,37 @@ export const dokanService = {
       }
       throw error;
     }
+  },
+
+  // ==========================================
+  // COUPONS
+  // ==========================================
+  getCoupons: async (): Promise<DokanCoupon[]> => {
+    const { data } = await apiClient.get('/dokan/v1/coupons', {
+      params: {
+        per_page: 100,
+        page: 1,
+      },
+    });
+    return data;
+  },
+
+  createCoupon: async (payload: CreateCouponPayload): Promise<DokanCoupon> => {
+    const { data } = await apiClient.post('/dokan/v1/coupons', payload);
+    return data;
+  },
+
+  updateCoupon: async (couponId: number, payload: UpdateCouponPayload): Promise<DokanCoupon> => {
+    const { data } = await apiClient.put(`/dokan/v1/coupons/${couponId}`, payload);
+    return data;
+  },
+
+  deleteCoupon: async (couponId: number): Promise<void> => {
+    await apiClient.delete(`/dokan/v1/coupons/${couponId}`);
+  },
+
+  toggleCouponStatus: async (couponId: number, isActive: boolean): Promise<DokanCoupon> => {
+    const nextStatus = isActive ? 'draft' : 'publish';
+    return dokanService.updateCoupon(couponId, { status: nextStatus });
   }
 };

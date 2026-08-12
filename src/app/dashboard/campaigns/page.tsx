@@ -1,7 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, AlertCircle, Megaphone, Users, Send, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  Plus,
+  AlertCircle,
+  Megaphone,
+  Users,
+  Send,
+  RefreshCw,
+  Trash2,
+  TicketPercent,
+  Pencil,
+} from 'lucide-react';
 import {
   getCampaigns,
   getCustomers,
@@ -11,10 +21,13 @@ import {
   deleteCustomer,
 } from '@/services/bulkMessaging.service';
 import type { Campaign, BulkCustomer, CampaignStatus } from '@/types/bulkMessaging';
+import type { CreateCouponPayload, DokanCoupon, UpdateCouponPayload } from '@/types/dokan';
 import NewCampaignModal from '@/components/advertising/NewCampaignModal';
 import AddCustomerModal from '@/components/advertising/AddCustomerModal';
+import CouponModal from '@/components/advertising/CouponModal';
+import { dokanService } from '@/services/dokan.service';
 
-type Tab = 'campaigns' | 'customers';
+type Tab = 'campaigns' | 'customers' | 'coupons';
 
 const STATUS_LABELS: Record<CampaignStatus, string> = {
   draft: 'پیش‌نویس',
@@ -44,6 +57,16 @@ const CHANNEL_LABELS: Record<string, string> = {
   whatsapp: 'واتساپ',
 };
 
+const COUPON_STATUS_LABELS: Record<string, string> = {
+  publish: 'فعال',
+  draft: 'غیرفعال',
+};
+
+const COUPON_DISCOUNT_LABELS: Record<string, string> = {
+  percent: 'درصدی',
+  fixed_cart: 'مبلغ ثابت',
+};
+
 function formatDate(dateStr: string): string {
   try {
     return new Intl.DateTimeFormat('fa-IR', {
@@ -69,6 +92,14 @@ export default function CampaignsPage() {
   const [isCustomersLoading, setIsCustomersLoading] = useState(false);
   const [customersError, setCustomersError] = useState<string | null>(null);
   const [customersFetched, setCustomersFetched] = useState(false);
+
+  const [coupons, setCoupons] = useState<DokanCoupon[]>([]);
+  const [isCouponsLoading, setIsCouponsLoading] = useState(false);
+  const [couponsError, setCouponsError] = useState<string | null>(null);
+  const [couponsFetched, setCouponsFetched] = useState(false);
+  const [couponActionLoading, setCouponActionLoading] = useState<Record<number, string>>({});
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<DokanCoupon | null>(null);
 
   // Per-row action loading: maps campaign id → action name
   const [actionLoading, setActionLoading] = useState<Record<number, string>>({});
@@ -106,6 +137,20 @@ export default function CampaignsPage() {
     }
   }, []);
 
+  const fetchCoupons = useCallback(async () => {
+    setIsCouponsLoading(true);
+    setCouponsError(null);
+    try {
+      const data = await dokanService.getCoupons();
+      setCoupons(data);
+      setCouponsFetched(true);
+    } catch {
+      setCouponsError('دریافت کوپن‌ها با خطا مواجه شد.');
+    } finally {
+      setIsCouponsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCampaigns();
   }, [fetchCampaigns]);
@@ -115,6 +160,12 @@ export default function CampaignsPage() {
       fetchCustomers(0);
     }
   }, [activeTab, customersFetched, fetchCustomers]);
+
+  useEffect(() => {
+    if (activeTab === 'coupons' && !couponsFetched) {
+      fetchCoupons();
+    }
+  }, [activeTab, couponsFetched, fetchCoupons]);
 
   // ── Campaign actions ────────────────────────────────────────────────────────
 
@@ -159,6 +210,67 @@ export default function CampaignsPage() {
   const handlePageChange = (offset: number) => {
     setCustomersOffset(offset);
     fetchCustomers(offset);
+  };
+
+  // ── Coupon actions ─────────────────────────────────────────────────────────
+
+  const handleCreateCoupon = async (payload: CreateCouponPayload | UpdateCouponPayload) => {
+    const created = await dokanService.createCoupon(payload as CreateCouponPayload);
+    setCoupons((prev) => [created, ...prev]);
+  };
+
+  const handleUpdateCoupon = async (payload: CreateCouponPayload | UpdateCouponPayload) => {
+    if (!editingCoupon) return;
+    const updated = await dokanService.updateCoupon(editingCoupon.id, payload as UpdateCouponPayload);
+    setCoupons((prev) => prev.map((coupon) => (coupon.id === updated.id ? updated : coupon)));
+  };
+
+  const openNewCouponModal = () => {
+    setEditingCoupon(null);
+    setShowCouponModal(true);
+  };
+
+  const openEditCouponModal = (coupon: DokanCoupon) => {
+    setEditingCoupon(coupon);
+    setShowCouponModal(true);
+  };
+
+  const handleDeleteCoupon = async (couponId: number) => {
+    if (!confirm('آیا از حذف این کوپن مطمئن هستید؟')) return;
+    setCouponActionLoading((prev) => ({ ...prev, [couponId]: 'delete' }));
+    try {
+      await dokanService.deleteCoupon(couponId);
+      setCoupons((prev) => prev.filter((coupon) => coupon.id !== couponId));
+    } finally {
+      setCouponActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[couponId];
+        return next;
+      });
+    }
+  };
+
+  const handleToggleCouponStatus = async (coupon: DokanCoupon) => {
+    const currentStatus = coupon.status === 'publish';
+    setCouponActionLoading((prev) => ({ ...prev, [coupon.id]: 'toggle' }));
+    try {
+      const updated = await dokanService.toggleCouponStatus(coupon.id, currentStatus);
+      setCoupons((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } finally {
+      setCouponActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[coupon.id];
+        return next;
+      });
+    }
+  };
+
+  const formatCouponAmount = (coupon: DokanCoupon): string => {
+    const value = Number(coupon.amount || 0);
+    if (coupon.discount_type === 'percent') {
+      return `${value.toLocaleString('fa-IR')}%`;
+    }
+    return `${value.toLocaleString('fa-IR')} تومان`;
   };
 
   // ── Renders ─────────────────────────────────────────────────────────────────
@@ -392,6 +504,127 @@ export default function CampaignsPage() {
     );
   };
 
+  const renderCoupons = () => {
+    if (isCouponsLoading) {
+      return (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+
+    if (couponsError) {
+      return (
+        <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-700 dark:text-red-400">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm">{couponsError}</span>
+        </div>
+      );
+    }
+
+    if (coupons.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-600">
+          <TicketPercent className="w-14 h-14 mb-4 opacity-30" />
+          <p className="text-base font-medium">هنوز کوپنی ایجاد نشده</p>
+          <p className="text-sm mt-1">برای شروع روی «کوپن جدید» کلیک کنید.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {coupons.map((coupon) => {
+          const status = coupon.status ?? 'publish';
+          const isActive = status === 'publish';
+          const loading = couponActionLoading[coupon.id];
+          return (
+            <div
+              key={coupon.id}
+              className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-4"
+            >
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100" dir="ltr">
+                      {coupon.code}
+                    </h3>
+                    <span
+                      className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                        isActive
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                      }`}
+                    >
+                      {COUPON_STATUS_LABELS[status] ?? status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                      {COUPON_DISCOUNT_LABELS[coupon.discount_type] ?? coupon.discount_type}
+                    </span>
+                    <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">
+                      {formatCouponAmount(coupon)}
+                    </span>
+                    {coupon.minimum_amount && (
+                      <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                        حداقل خرید: {Number(coupon.minimum_amount).toLocaleString('fa-IR')}
+                      </span>
+                    )}
+                    {coupon.usage_limit != null && (
+                      <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                        محدودیت: {coupon.usage_limit.toLocaleString('fa-IR')}
+                      </span>
+                    )}
+                  </div>
+                  {coupon.date_expires && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      انقضا: {formatDate(coupon.date_expires)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                  <button
+                    onClick={() => handleToggleCouponStatus(coupon)}
+                    disabled={!!loading}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-60 ${
+                      isActive
+                        ? 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {loading === 'toggle' ? '...' : isActive ? 'غیرفعال کردن' : 'فعال کردن'}
+                  </button>
+                  <button
+                    onClick={() => openEditCouponModal(coupon)}
+                    disabled={!!loading}
+                    className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 disabled:opacity-60 transition-colors"
+                    title="ویرایش"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCoupon(coupon.id)}
+                    disabled={!!loading}
+                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
+                    title="حذف"
+                  >
+                    {loading === 'delete' ? (
+                      <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Page header */}
@@ -399,12 +632,20 @@ export default function CampaignsPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">تبلیغات</h1>
         <button
           onClick={() =>
-            activeTab === 'campaigns' ? setShowNewCampaign(true) : setShowAddCustomer(true)
+            activeTab === 'campaigns'
+              ? setShowNewCampaign(true)
+              : activeTab === 'customers'
+                ? setShowAddCustomer(true)
+                : openNewCouponModal()
           }
           className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
         >
           <Plus className="w-4 h-4" />
-          {activeTab === 'campaigns' ? 'کمپین جدید' : 'افزودن مخاطب'}
+          {activeTab === 'campaigns'
+            ? 'کمپین جدید'
+            : activeTab === 'customers'
+              ? 'افزودن مخاطب'
+              : 'کوپن جدید'}
         </button>
       </div>
 
@@ -413,6 +654,7 @@ export default function CampaignsPage() {
         {([
           { key: 'campaigns', label: 'کمپین‌ها', icon: Megaphone },
           { key: 'customers', label: 'مخاطبان', icon: Users },
+          { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -430,7 +672,11 @@ export default function CampaignsPage() {
       </div>
 
       {/* Content */}
-      {activeTab === 'campaigns' ? renderCampaigns() : renderCustomers()}
+      {activeTab === 'campaigns'
+        ? renderCampaigns()
+        : activeTab === 'customers'
+          ? renderCustomers()
+          : renderCoupons()}
 
       {/* Modals */}
       <NewCampaignModal
@@ -444,6 +690,21 @@ export default function CampaignsPage() {
         onSuccess={() => {
           setCustomersFetched(false);
           fetchCustomers(0);
+        }}
+      />
+      <CouponModal
+        isOpen={showCouponModal}
+        onClose={() => {
+          setShowCouponModal(false);
+          setEditingCoupon(null);
+        }}
+        editingCoupon={editingCoupon}
+        onSubmit={async (payload) => {
+          if (editingCoupon) {
+            await handleUpdateCoupon(payload);
+          } else {
+            await handleCreateCoupon(payload);
+          }
         }}
       />
     </div>
