@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { X } from 'lucide-react';
-import type { CreateCouponPayload, DokanCoupon, UpdateCouponPayload } from '@/types/dokan';
+import { dokanService } from '@/services/dokan.service';
+import type { CreateCouponPayload, DokanCoupon, DokanProduct, UpdateCouponPayload } from '@/types/dokan';
 
 const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
 const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
@@ -134,6 +136,7 @@ const schema = z.object({
     today.setHours(0, 0, 0, 0);
     return picked.getTime() >= today.getTime();
   }, 'تاریخ انقضا نباید در گذشته باشد'),
+  product_ids: z.array(z.number()).optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -162,9 +165,15 @@ export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }
 
 function CouponForm({ onClose, onSubmit, editingCoupon }: Omit<Props, 'isOpen'>) {
   const isEdit = !!editingCoupon;
+  const [products, setProducts] = useState<DokanProduct[]>([]);
+  const [isProductsLoading, setIsProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+  const [productSearch, setProductSearch] = useState('');
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -175,8 +184,56 @@ function CouponForm({ onClose, onSubmit, editingCoupon }: Omit<Props, 'isOpen'>)
       minimum_amount: editingCoupon?.minimum_amount != null ? String(editingCoupon.minimum_amount) : '',
       usage_limit: editingCoupon?.usage_limit != null ? String(editingCoupon.usage_limit) : '',
       date_expires: toDateInputValue(editingCoupon?.date_expires),
+      product_ids: editingCoupon?.product_ids ?? [],
     },
   });
+
+  const selectedProductIds = watch('product_ids') ?? [];
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProducts = async () => {
+      setIsProductsLoading(true);
+      setProductsError(null);
+      try {
+        const list = await dokanService.getProducts();
+        if (!active) return;
+        setProducts(Array.isArray(list) ? list : []);
+      } catch {
+        if (!active) return;
+        setProductsError('دریافت محصولات با خطا مواجه شد.');
+      } finally {
+        if (!active) return;
+        setIsProductsLoading(false);
+      }
+    };
+
+    loadProducts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setValue('product_ids', editingCoupon?.product_ids ?? []);
+  }, [editingCoupon, setValue]);
+
+  const filteredProducts = useMemo(() => {
+    const normalized = productSearch.trim().toLowerCase();
+    if (!normalized) return products;
+    return products.filter((product) => {
+      const name = String(product.name ?? '').toLowerCase();
+      return name.includes(normalized);
+    });
+  }, [productSearch, products]);
+
+  const toggleProduct = (productId: number) => {
+    const next = selectedProductIds.includes(productId)
+      ? selectedProductIds.filter((id) => id !== productId)
+      : [...selectedProductIds, productId];
+    setValue('product_ids', next, { shouldDirty: true });
+  };
 
   const submitHandler = async (data: FormData) => {
     const normalizedCode = data.code.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim().toUpperCase();
@@ -188,6 +245,7 @@ function CouponForm({ onClose, onSubmit, editingCoupon }: Omit<Props, 'isOpen'>)
       discount_type: data.discount_type,
       amount: normalizedAmount,
       minimum_amount: normalizedMinimumAmount || undefined,
+      product_ids: data.product_ids && data.product_ids.length > 0 ? data.product_ids : [],
       usage_limit: normalizedUsageLimit ? Number(normalizedUsageLimit) : undefined,
       date_expires: toLocalDayEndIso(data.date_expires ?? '') ?? undefined,
     };
@@ -198,6 +256,7 @@ function CouponForm({ onClose, onSubmit, editingCoupon }: Omit<Props, 'isOpen'>)
         discount_type: basePayload.discount_type,
         amount: basePayload.amount,
         minimum_amount: basePayload.minimum_amount,
+        product_ids: basePayload.product_ids,
         usage_limit: basePayload.usage_limit,
         date_expires: basePayload.date_expires,
       };
@@ -322,6 +381,62 @@ function CouponForm({ onClose, onSubmit, editingCoupon }: Omit<Props, 'isOpen'>)
               {errors.date_expires && (
                 <p className="mt-1 text-sm text-red-500">{errors.date_expires.message}</p>
               )}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  محصولات مشمول
+                </label>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {selectedProductIds.length.toLocaleString('fa-IR')} انتخاب شده
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                اگر محصولی انتخاب نکنید، کوپن برای همه محصولات اعمال می‌شود.
+              </p>
+              <input
+                type="text"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="جستجو محصول..."
+                className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 mb-2"
+              />
+              <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-2 max-h-48 overflow-y-auto bg-gray-50/60 dark:bg-gray-800/40">
+                {isProductsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : productsError ? (
+                  <p className="text-sm text-red-500 py-2">{productsError}</p>
+                ) : filteredProducts.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                    محصولی پیدا نشد.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredProducts.map((product) => {
+                      const checked = selectedProductIds.includes(product.id);
+                      return (
+                        <label
+                          key={product.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/80 dark:hover:bg-gray-700/50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleProduct(product.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-200 truncate">
+                            {product.name}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

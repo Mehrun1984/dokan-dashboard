@@ -576,6 +576,11 @@ export default function CampaignsPage() {
                         محدودیت: {coupon.usage_limit.toLocaleString('fa-IR')}
                       </span>
                     )}
+                    {coupon.product_ids && coupon.product_ids.length > 0 && (
+                      <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                        محصولات: {coupon.product_ids.length.toLocaleString('fa-IR')}
+                      </span>
+                    )}
                   </div>
                   {coupon.date_expires && (
                     <p className="text-xs text-gray-400 mt-1">

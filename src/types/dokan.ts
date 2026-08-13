@@ -54,6 +54,7 @@ export interface DokanCoupon {
   discount_type: 'percent' | 'fixed_cart' | string;
   amount: string;
   minimum_amount?: string;
+  product_ids?: number[];
   usage_limit?: number;
   usage_count?: number;
   date_expires?: string | null;
@@ -68,6 +69,7 @@ export interface CreateCouponPayload {
   amount: string;
   description?: string;
   minimum_amount?: string;
+  product_ids?: number[];
   usage_limit?: number;
   date_expires?: string;
   status?: 'publish' | 'draft';
@@ -79,6 +81,7 @@ export interface UpdateCouponPayload {
   amount?: string;
   description?: string;
   minimum_amount?: string;
+  product_ids?: number[];
   usage_limit?: number;
   date_expires?: string;
   status?: 'publish' | 'draft';
