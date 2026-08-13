@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -157,53 +156,27 @@ function toDateInputValue(dateStr?: string | null): string {
 }
 
 export default function CouponModal({ isOpen, onClose, onSubmit, editingCoupon }: Props) {
+  if (!isOpen) return null;
+  return <CouponForm onClose={onClose} onSubmit={onSubmit} editingCoupon={editingCoupon} />;
+}
+
+function CouponForm({ onClose, onSubmit, editingCoupon }: Omit<Props, 'isOpen'>) {
   const isEdit = !!editingCoupon;
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
-    reValidateMode: 'onChange',
     defaultValues: {
-      code: '',
-      discount_type: 'percent',
-      amount: '',
-      minimum_amount: '',
-      usage_limit: '',
-      date_expires: '',
+      code: editingCoupon?.code ?? '',
+      discount_type: editingCoupon?.discount_type === 'fixed_cart' ? 'fixed_cart' : 'percent',
+      amount: editingCoupon?.amount != null ? String(editingCoupon.amount) : '',
+      minimum_amount: editingCoupon?.minimum_amount != null ? String(editingCoupon.minimum_amount) : '',
+      usage_limit: editingCoupon?.usage_limit != null ? String(editingCoupon.usage_limit) : '',
+      date_expires: toDateInputValue(editingCoupon?.date_expires),
     },
   });
-
-  useEffect(() => {
-    if (!isOpen) {
-      reset();
-      return;
-    }
-    if (editingCoupon) {
-      reset({
-        code: editingCoupon.code ?? '',
-        discount_type: editingCoupon.discount_type === 'fixed_cart' ? 'fixed_cart' : 'percent',
-        amount: editingCoupon.amount ?? '',
-        minimum_amount: editingCoupon.minimum_amount ?? '',
-        usage_limit: editingCoupon.usage_limit ? String(editingCoupon.usage_limit) : '',
-        date_expires: toDateInputValue(editingCoupon.date_expires),
-      });
-      return;
-    }
-    reset({
-      code: '',
-      discount_type: 'percent',
-      amount: '',
-      minimum_amount: '',
-      usage_limit: '',
-      date_expires: '',
-    });
-  }, [isOpen, editingCoupon, reset]);
-
-  if (!isOpen) return null;
 
   const submitHandler = async (data: FormData) => {
     const normalizedCode = data.code.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim().toUpperCase();
