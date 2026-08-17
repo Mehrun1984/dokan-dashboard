@@ -82,7 +82,8 @@ export async function deleteCustomer(id: number): Promise<void> {
 
 // ── Message Templates ─────────────────────────────────────────────────────────
 
-export async function getTemplates(): Promise<MessageTemplate[]> {
-  const res = await apiClient.get<{ data: MessageTemplate[] }>(`${BASE}/message-templates`);
+export async function getTemplates(storeCategoryId?: number): Promise<MessageTemplate[]> {
+  const params = storeCategoryId ? { store_category_id: storeCategoryId } : {};
+  const res = await apiClient.get<{ data: MessageTemplate[] }>(`${BASE}/message-templates`, { params });
   return res.data.data ?? [];
 }

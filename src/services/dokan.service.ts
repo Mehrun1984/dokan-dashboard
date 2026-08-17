@@ -4,6 +4,7 @@ import {
   DokanCoupon,
   DokanProduct,
   StoreSettings,
+  StoreInfo,
   UpdateCouponPayload,
 } from '@/types/dokan'; // Ensure this matches your types location
 
@@ -250,5 +251,14 @@ export const dokanService = {
   toggleCouponStatus: async (couponId: number, isActive: boolean): Promise<DokanCoupon> => {
     const nextStatus = isActive ? 'draft' : 'publish';
     return dokanService.updateCoupon(couponId, { status: nextStatus });
+  },
+
+  getStoreInfo: async (): Promise<StoreInfo> => {
+    const res = await fetch('/api/vendor/store', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    return parseInternalApiResponse(res);
   }
 };
