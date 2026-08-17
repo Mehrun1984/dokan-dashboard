@@ -111,10 +111,12 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       dokanService.getStoreInfo()
         .then((storeInfo) => {
           const storeCategoryId = storeInfo?.category?.id;
+          console.log('Store category ID:', storeCategoryId, 'from store info:', storeInfo);
           if (!cancelled) {
             Promise.all([getTemplates(storeCategoryId), dokanService.getProducts()])
               .then(([tmpl, prods]) => {
                 if (!cancelled) {
+                  console.log('Templates fetched:', tmpl.length, 'with category filter:', storeCategoryId);
                   setTemplates(tmpl);
                   setProducts(prods);
                   const catMap = new Map<number, Category>();
@@ -134,6 +136,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             Promise.all([getTemplates(), dokanService.getProducts()])
               .then(([tmpl, prods]) => {
                 if (!cancelled) {
+                  console.log('Templates fetched (fallback, no filter):', tmpl.length);
                   setTemplates(tmpl);
                   setProducts(prods);
                   const catMap = new Map<number, Category>();

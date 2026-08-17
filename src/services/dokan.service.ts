@@ -254,11 +254,8 @@ export const dokanService = {
   },
 
   getStoreInfo: async (): Promise<StoreInfo> => {
-    const res = await fetch('/api/vendor/store', {
-      method: 'GET',
-      credentials: 'include',
-      cache: 'no-store',
-    });
-    return parseInternalApiResponse(res);
+    const { data } = await apiClient.get('/dokan/v1/store');
+    console.log('Store info response:', data);
+    return data as StoreInfo;
   }
 };
