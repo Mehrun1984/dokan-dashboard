@@ -253,9 +253,42 @@ export const dokanService = {
     return dokanService.updateCoupon(couponId, { status: nextStatus });
   },
 
-  getStoreInfo: async (): Promise<StoreInfo> => {
-    const { data } = await apiClient.get('/dokan/v1/store');
-    console.log('Store info response:', data);
-    return data as StoreInfo;
+  getStoreInfo: async (): Promise<StoreInfo | null> => {
+    const endpoints = [
+      '/dokan/v1/store',
+      '/dokan/v1/settings',
+      '/dokan/v1/vendor',
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log('Trying endpoint:', endpoint);
+        const { data } = await apiClient.get(endpoint);
+        console.log(`Store info response from ${endpoint}:`, data);
+        
+        // Try to extract category from different response structures
+        let category = null;
+        if (data?.category?.id) {
+          category = { id: data.category.id, name: data.category.name, slug: data.category.slug };
+        } else if (data?.store_category?.id) {
+          category = { id: data.store_category.id, name: data.store_category.name, slug: data.store_category.slug };
+        } else if (data?.store?.category?.id) {
+          category = { id: data.store.category.id, name: data.store.category.name, slug: data.store.category.slug };
+        }
+        
+        if (category) {
+          return { ...data, category } as StoreInfo;
+        }
+        
+        // If no category found but data exists, return with null category
+        return { ...data, category: null } as StoreInfo;
+      } catch (error) {
+        console.warn(`Endpoint ${endpoint} failed:`, error);
+        continue;
+      }
+    }
+    
+    console.error('All store info endpoints failed');
+    return null;
   }
 };
