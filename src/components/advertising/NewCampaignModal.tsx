@@ -106,15 +106,31 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   useEffect(() => {
     if (isOpen && step === 3 && templates.length === 0) {
       setIsLoadingResources(true);
-      Promise.all([getTemplates(), dokanService.getProducts()])
-        .then(([tmpl, prods]) => {
-          setTemplates(tmpl);
-          setProducts(prods);
-          const catMap = new Map<number, Category>();
-          prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
-          setCategories(Array.from(catMap.values()));
+      dokanService.getStoreInfo()
+        .then((storeInfo) => {
+          const storeCategoryId = storeInfo?.category?.id;
+          Promise.all([getTemplates(storeCategoryId), dokanService.getProducts()])
+            .then(([tmpl, prods]) => {
+              setTemplates(tmpl);
+              setProducts(prods);
+              const catMap = new Map<number, Category>();
+              prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
+              setCategories(Array.from(catMap.values()));
+            })
+            .finally(() => setIsLoadingResources(false));
         })
-        .finally(() => setIsLoadingResources(false));
+        .catch(() => {
+          // If we can't get store info, get all templates
+          Promise.all([getTemplates(), dokanService.getProducts()])
+            .then(([tmpl, prods]) => {
+              setTemplates(tmpl);
+              setProducts(prods);
+              const catMap = new Map<number, Category>();
+              prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
+              setCategories(Array.from(catMap.values()));
+            })
+            .finally(() => setIsLoadingResources(false));
+        });
     }
   }, [isOpen, step, templates.length]);
 
