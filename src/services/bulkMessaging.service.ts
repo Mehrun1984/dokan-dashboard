@@ -87,3 +87,16 @@ export async function getTemplates(storeCategoryId?: number): Promise<MessageTem
   const res = await apiClient.get<{ data: MessageTemplate[] }>(`${BASE}/message-templates`, { params });
   return res.data.data ?? [];
 }
+
+// ── Vendor store category ───────────────────────────────────────────────────
+
+export interface VendorStoreCategoryResponse {
+  vendor_id: number;
+  store_category_id: number;
+  store_categories: { id: number; name: string; slug: string }[];
+}
+
+export async function getVendorStoreCategory(): Promise<VendorStoreCategoryResponse> {
+  const res = await apiClient.get<VendorStoreCategoryResponse>(`${BASE}/vendor/store-category`);
+  return res.data;
+}

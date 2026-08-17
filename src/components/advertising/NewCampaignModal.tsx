@@ -8,6 +8,7 @@ import {
   sendCampaign,
   getCustomers,
   getTemplates,
+  getVendorStoreCategory,
 } from '@/services/bulkMessaging.service';
 import { dokanService } from '@/services/dokan.service';
 import type {
@@ -107,49 +108,26 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     if (isOpen && step === 3 && templates.length === 0) {
       setIsLoadingResources(true);
       let cancelled = false;
-      
-      dokanService.getStoreInfo()
-        .then((storeInfo) => {
-          const storeCategoryId = storeInfo?.category?.id;
-          console.log('Store category ID:', storeCategoryId, 'from store info:', storeInfo);
-          if (!cancelled) {
-            Promise.all([getTemplates(storeCategoryId), dokanService.getProducts()])
-              .then(([tmpl, prods]) => {
-                if (!cancelled) {
-                  console.log('Templates fetched:', tmpl.length, 'with category filter:', storeCategoryId);
-                  setTemplates(tmpl);
-                  setProducts(prods);
-                  const catMap = new Map<number, Category>();
-                  prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
-                  setCategories(Array.from(catMap.values()));
-                }
-              })
-              .finally(() => {
-                if (!cancelled) setIsLoadingResources(false);
-              });
-          }
+
+      getVendorStoreCategory()
+        .then((storeCategory) => storeCategory.store_category_id)
+        .catch(() => 0)
+        .then((storeCategoryId) => {
+          if (cancelled) return;
+          return Promise.all([getTemplates(storeCategoryId || undefined), dokanService.getProducts()])
+            .then(([tmpl, prods]) => {
+              if (cancelled) return;
+              setTemplates(tmpl);
+              setProducts(prods);
+              const catMap = new Map<number, Category>();
+              prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
+              setCategories(Array.from(catMap.values()));
+            });
         })
-        .catch((error) => {
-          console.error('Failed to fetch store info', error);
-          // If we can't get store info, get all templates (filtering not available)
-          if (!cancelled) {
-            Promise.all([getTemplates(), dokanService.getProducts()])
-              .then(([tmpl, prods]) => {
-                if (!cancelled) {
-                  console.log('Templates fetched (fallback, no filter):', tmpl.length);
-                  setTemplates(tmpl);
-                  setProducts(prods);
-                  const catMap = new Map<number, Category>();
-                  prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
-                  setCategories(Array.from(catMap.values()));
-                }
-              })
-              .finally(() => {
-                if (!cancelled) setIsLoadingResources(false);
-              });
-          }
+        .finally(() => {
+          if (!cancelled) setIsLoadingResources(false);
         });
-      
+
       return () => {
         cancelled = true;
       };

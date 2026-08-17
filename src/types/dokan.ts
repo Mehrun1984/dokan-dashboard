@@ -87,31 +87,3 @@ export interface UpdateCouponPayload {
   status?: 'publish' | 'draft';
 }
 
-export interface StoreCategory {
-  id: number;
-  name: string;
-  slug: string;
-}
-
-export interface StoreInfo {
-  id: number;
-  name: string;
-  url: string;
-  description: string;
-  category: StoreCategory | null;
-  address: {
-    street_1: string;
-    street_2: string;
-    city: string;
-    postcode: string;
-    country: string;
-    state: string;
-  };
-  social_profiles: Record<string, string>;
-  gravatar: string;
-  banner: string;
-  phone: string;
-  email: string;
-  support_ticket: boolean;
-  is_active: boolean;
-}
