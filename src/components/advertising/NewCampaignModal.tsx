@@ -92,6 +92,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<MessageTemplate | null>(null);
 
   // Reset when closed
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       setStep(1);
       setForm(initialForm);
       setSubmitError(null);
+      setPreviewTemplate(null);
     }
   }, [isOpen]);
 
@@ -428,9 +430,10 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
           ) : (
             <div className="space-y-2 max-h-44 overflow-y-auto">
               {templates.map((t) => (
-                <button
+                <div
                   key={t.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     const usesLink = templateHasVariable(t.body, 'link');
                     const usesCoupon = templateHasVariable(t.body, 'coupon');
@@ -438,19 +441,41 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
                       usesCoupon && !usesLink ? 'coupon' : 'service';
                     patch({ templateId: t.id, linkType: nextLinkType, linkTargetId: null });
                   }}
-                  className={`w-full text-right px-4 py-3 rounded-xl border transition-colors ${
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      const usesLink = templateHasVariable(t.body, 'link');
+                      const usesCoupon = templateHasVariable(t.body, 'coupon');
+                      const nextLinkType: CampaignLinkType =
+                        usesCoupon && !usesLink ? 'coupon' : 'service';
+                      patch({ templateId: t.id, linkType: nextLinkType, linkTargetId: null });
+                    }
+                  }}
+                  className={`w-full flex items-start gap-2 text-right px-4 py-3 rounded-xl border transition-colors cursor-pointer ${
                     form.templateId === t.id
                       ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
                       : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {t.title}
-                  </span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
-                    {t.body}
-                  </span>
-                </button>
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {t.title}
+                    </span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                      {t.body}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewTemplate(t);
+                    }}
+                    className="flex-shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline px-1.5 py-1"
+                  >
+                    مشاهده
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -598,6 +623,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const stepTitles = ['اطلاعات پایه', 'مخاطبان', 'پیام و لینک', 'تأیید نهایی'];
 
   return (
+    <>
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
@@ -683,5 +709,36 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         </div>
       </div>
     </div>
+
+    {/* Template preview modal */}
+    {previewTemplate && (
+      <div
+        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        onClick={() => setPreviewTemplate(null)}
+      >
+        <div
+          className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md shadow-xl max-h-[80vh] flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              {previewTemplate.title}
+            </h3>
+            <button
+              onClick={() => setPreviewTemplate(null)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="px-6 py-5 overflow-y-auto">
+            <p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+              {previewTemplate.body}
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
