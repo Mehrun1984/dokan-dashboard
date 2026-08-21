@@ -2,6 +2,7 @@ import apiClient from '@/lib/axios';
 import type {
   Campaign,
   BulkCustomer,
+  BulkCoupon,
   MessageTemplate,
   CreateCampaignPayload,
 } from '@/types/bulkMessaging';
@@ -85,6 +86,13 @@ export async function deleteCustomer(id: number): Promise<void> {
 export async function getTemplates(storeCategoryId?: number): Promise<MessageTemplate[]> {
   const params = storeCategoryId ? { store_category_id: storeCategoryId } : {};
   const res = await apiClient.get<{ data: MessageTemplate[] }>(`${BASE}/message-templates`, { params });
+  return res.data.data ?? [];
+}
+
+// ── Coupons ──────────────────────────────────────────────────────────────────
+
+export async function getCoupons(): Promise<BulkCoupon[]> {
+  const res = await apiClient.get<{ data: BulkCoupon[] }>(`${BASE}/bulk-coupons`);
   return res.data.data ?? [];
 }
 

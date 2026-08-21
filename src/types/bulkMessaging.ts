@@ -1,7 +1,7 @@
 export type CampaignStatus = 'draft' | 'pending' | 'sent' | 'failed' | 'cancelled';
 export type CampaignMode = 'customer_list' | 'location';
 export type CampaignChannel = 'sms' | 'bale' | 'telegram' | 'whatsapp';
-export type CampaignLinkType = 'service' | 'category';
+export type CampaignLinkType = 'service' | 'category' | 'coupon';
 
 export interface Campaign {
   id: number;
@@ -39,13 +39,21 @@ export interface MessageTemplate {
   created_at: string;
 }
 
+export interface BulkCoupon {
+  id: number;
+  code: string;
+}
+
 export interface CreateCampaignPayload {
   name: string;
   mode: CampaignMode;
   channels: CampaignChannel[];
   template_id: number;
-  link_type: CampaignLinkType;
-  link_target_id: number;
+  // required when the template body contains {{link}}
+  link_type?: Exclude<CampaignLinkType, 'coupon'>;
+  link_target_id?: number;
+  // required when the template body contains {{coupon}}
+  coupon_id?: number;
   // customer_list mode
   customer_ids?: number[];
   // location mode

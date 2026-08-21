@@ -8,10 +8,12 @@ import {
   sendCampaign,
   getCustomers,
   getTemplates,
+  getCoupons,
   getVendorStoreCategory,
 } from '@/services/bulkMessaging.service';
 import { dokanService } from '@/services/dokan.service';
 import type {
+  BulkCoupon,
   BulkCustomer,
   CampaignChannel,
   CampaignLinkType,
@@ -35,7 +37,13 @@ const CHANNELS: { value: CampaignChannel; label: string }[] = [
 const LINK_TYPES: { value: CampaignLinkType; label: string }[] = [
   { value: 'service', label: 'خدمت / محصول' },
   { value: 'category', label: 'دسته‌بندی' },
+  { value: 'coupon', label: 'کوپن' },
 ];
+
+/** Whether the template body contains the given {{variable}} placeholder. */
+function templateHasVariable(body: string | undefined, variable: string): boolean {
+  return !!body && body.includes(`{{${variable}}}`);
+}
 
 interface LatLng { lat: number; lng: number }
 
@@ -79,6 +87,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [products, setProducts] = useState<DokanProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [coupons, setCoupons] = useState<BulkCoupon[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -114,11 +123,16 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         .catch(() => 0)
         .then((storeCategoryId) => {
           if (cancelled) return;
-          return Promise.all([getTemplates(storeCategoryId || undefined), dokanService.getProducts()])
-            .then(([tmpl, prods]) => {
+          return Promise.all([
+            getTemplates(storeCategoryId || undefined),
+            dokanService.getProducts(),
+            getCoupons(),
+          ])
+            .then(([tmpl, prods, coups]) => {
               if (cancelled) return;
               setTemplates(tmpl);
               setProducts(prods);
+              setCoupons(coups);
               const catMap = new Map<number, Category>();
               prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
               setCategories(Array.from(catMap.values()));
@@ -160,7 +174,14 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       if (form.mode === 'customer_list') return form.selectedCustomerIds.length > 0;
       return form.location !== null;
     }
-    if (step === 3) return form.templateId !== null && form.linkTargetId !== null;
+    if (step === 3) {
+      if (form.templateId === null) return false;
+      const selectedTemplate = templates.find((t) => t.id === form.templateId);
+      const needsTarget =
+        templateHasVariable(selectedTemplate?.body, 'link') ||
+        templateHasVariable(selectedTemplate?.body, 'coupon');
+      return !needsTarget || form.linkTargetId !== null;
+    }
     return true;
   };
 
@@ -168,13 +189,19 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     setIsSubmitting(true);
     setSubmitError(null);
     try {
+      const selectedTemplate = templates.find((t) => t.id === form.templateId);
+      const usesLink = templateHasVariable(selectedTemplate?.body, 'link');
+      const usesCoupon = templateHasVariable(selectedTemplate?.body, 'coupon');
+
       const campaign = await createCampaign({
         name: form.name,
         mode: form.mode,
         channels: form.channels,
         template_id: form.templateId!,
-        link_type: form.linkType,
-        link_target_id: form.linkTargetId!,
+        ...(usesLink
+          ? { link_type: form.linkType as 'service' | 'category', link_target_id: form.linkTargetId! }
+          : {}),
+        ...(usesCoupon ? { coupon_id: form.linkTargetId! } : {}),
         customer_ids: form.mode === 'customer_list' ? form.selectedCustomerIds : undefined,
         location_lat: form.mode === 'location' ? form.location?.lat : undefined,
         location_lng: form.mode === 'location' ? form.location?.lng : undefined,
@@ -361,10 +388,27 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   );
 
   const renderStep3 = () => {
+    const selectedTemplate = templates.find((t) => t.id === form.templateId);
+    const templateUsesLink = templateHasVariable(selectedTemplate?.body, 'link');
+    const templateUsesCoupon = templateHasVariable(selectedTemplate?.body, 'coupon');
+    const needsLinkSelection = templateUsesLink || templateUsesCoupon;
+    const availableLinkTypes = LINK_TYPES.filter((lt) =>
+      lt.value === 'coupon' ? templateUsesCoupon : templateUsesLink,
+    );
+
     const targetOptions =
-      form.linkType === 'service'
-        ? products.map((p) => ({ id: p.id, label: p.name }))
-        : categories.map((c) => ({ id: c.id, label: c.name }));
+      form.linkType === 'coupon'
+        ? coupons.map((c) => ({ id: c.id, label: c.code }))
+        : form.linkType === 'service'
+          ? products.map((p) => ({ id: p.id, label: p.name }))
+          : categories.map((c) => ({ id: c.id, label: c.name }));
+
+    const targetLabel =
+      form.linkType === 'coupon'
+        ? 'انتخاب کوپن'
+        : form.linkType === 'service'
+          ? 'انتخاب خدمت / محصول'
+          : 'انتخاب دسته‌بندی';
 
     return (
       <div className="space-y-5">
@@ -387,7 +431,13 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => patch({ templateId: t.id })}
+                  onClick={() => {
+                    const usesLink = templateHasVariable(t.body, 'link');
+                    const usesCoupon = templateHasVariable(t.body, 'coupon');
+                    const nextLinkType: CampaignLinkType =
+                      usesCoupon && !usesLink ? 'coupon' : 'service';
+                    patch({ templateId: t.id, linkType: nextLinkType, linkTargetId: null });
+                  }}
                   className={`w-full text-right px-4 py-3 rounded-xl border transition-colors ${
                     form.templateId === t.id
                       ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
@@ -406,58 +456,62 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
           )}
         </div>
 
-        {/* نوع لینک */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            نوع لینک <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            {LINK_TYPES.map((lt) => (
-              <button
-                key={lt.value}
-                type="button"
-                onClick={() => patch({ linkType: lt.value, linkTargetId: null })}
-                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
-                  form.linkType === lt.value
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
-                }`}
-              >
-                {lt.label}
-              </button>
-            ))}
+        {/* نوع لینک — only relevant once a template is selected and it actually
+            references {{link}} and/or {{coupon}}; otherwise there's nothing to pick. */}
+        {needsLinkSelection && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              نوع لینک <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {availableLinkTypes.map((lt) => (
+                <button
+                  key={lt.value}
+                  type="button"
+                  onClick={() => patch({ linkType: lt.value, linkTargetId: null })}
+                  className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                    form.linkType === lt.value
+                      ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                  }`}
+                >
+                  {lt.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* هدف لینک */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            {form.linkType === 'service' ? 'انتخاب خدمت / محصول' : 'انتخاب دسته‌بندی'}{' '}
-            <span className="text-red-500">*</span>
-          </label>
-          {isLoadingResources ? (
-            <div className="h-12 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
-          ) : targetOptions.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
-              موردی یافت نشد.
-            </p>
-          ) : (
-            <select
-              value={form.linkTargetId ?? ''}
-              onChange={(e) =>
-                patch({ linkTargetId: e.target.value ? Number(e.target.value) : null })
-              }
-              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
-            >
-              <option value="">انتخاب کنید...</option>
-              {targetOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        {needsLinkSelection && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {targetLabel} <span className="text-red-500">*</span>
+            </label>
+            {isLoadingResources ? (
+              <div className="h-12 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
+            ) : targetOptions.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                موردی یافت نشد.
+              </p>
+            ) : (
+              <select
+                value={form.linkTargetId ?? ''}
+                onChange={(e) =>
+                  patch({ linkTargetId: e.target.value ? Number(e.target.value) : null })
+                }
+                className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+              >
+                <option value="">انتخاب کنید...</option>
+                {targetOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -468,11 +522,16 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     const channelLabels = form.channels
       .map((ch) => CHANNELS.find((c) => c.value === ch)?.label ?? ch)
       .join('، ');
+    const needsLinkSelection =
+      templateHasVariable(selectedTemplate?.body, 'link') ||
+      templateHasVariable(selectedTemplate?.body, 'coupon');
     const linkTypeLabel = LINK_TYPES.find((lt) => lt.value === form.linkType)?.label ?? form.linkType;
     const targetOptions =
-      form.linkType === 'service'
-        ? products.map((p) => ({ id: p.id, label: p.name }))
-        : categories.map((c) => ({ id: c.id, label: c.name }));
+      form.linkType === 'coupon'
+        ? coupons.map((c) => ({ id: c.id, label: c.code }))
+        : form.linkType === 'service'
+          ? products.map((p) => ({ id: p.id, label: p.name }))
+          : categories.map((c) => ({ id: c.id, label: c.name }));
     const targetLabel = targetOptions.find((o) => o.id === form.linkTargetId)?.label ?? String(form.linkTargetId);
 
     return (
@@ -507,14 +566,18 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
               </dd>
             </div>
           )}
-          <div className="flex justify-between text-sm">
-            <dt className="text-gray-500">نوع لینک</dt>
-            <dd className="font-medium text-gray-900 dark:text-gray-100">{linkTypeLabel}</dd>
-          </div>
-          <div className="flex justify-between text-sm">
-            <dt className="text-gray-500">هدف لینک</dt>
-            <dd className="font-medium text-gray-900 dark:text-gray-100">{targetLabel}</dd>
-          </div>
+          {needsLinkSelection && (
+            <>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">نوع لینک</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">{linkTypeLabel}</dd>
+              </div>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">هدف لینک</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">{targetLabel}</dd>
+              </div>
+            </>
+          )}
           <div className="text-sm">
             <dt className="text-gray-500 mb-1">قالب پیام</dt>
             <dd className="bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-pre-wrap text-sm">
