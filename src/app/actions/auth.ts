@@ -40,6 +40,35 @@ function createRequestId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function extractErrorCauseDetails(error: unknown) {
+  if (!(error instanceof Error)) {
+    return {};
+  }
+
+  const cause = (error as Error & { cause?: unknown }).cause;
+  if (!cause || typeof cause !== 'object') {
+    return {};
+  }
+
+  const typedCause = cause as {
+    code?: unknown;
+    errno?: unknown;
+    syscall?: unknown;
+    hostname?: unknown;
+    address?: unknown;
+    port?: unknown;
+  };
+
+  return {
+    causeCode: typedCause.code,
+    causeErrno: typedCause.errno,
+    causeSyscall: typedCause.syscall,
+    causeHostname: typedCause.hostname,
+    causeAddress: typedCause.address,
+    causePort: typedCause.port,
+  };
+}
+
 function logOtpFailure(action: 'send-otp' | 'verify-otp', details: Record<string, unknown>) {
   console.error(`[auth:${action}]`, details);
 }
@@ -86,8 +115,10 @@ export async function sendOtpAction(phone: string) {
       requestId,
       reason: 'network_or_runtime_exception',
       targetHost: new URL(targetUrl).host,
+      targetUrl,
       errorName: error instanceof Error ? error.name : 'unknown',
       errorMessage: error instanceof Error ? error.message : String(error),
+      ...extractErrorCauseDetails(error),
     });
     return { error: 'خطا در ارتباط با سرور.' };
   }
@@ -156,8 +187,10 @@ export async function verifyOtpAction(phone: string, code: string) {
       requestId,
       reason: 'network_or_runtime_exception',
       targetHost: new URL(targetUrl).host,
+      targetUrl,
       errorName: error instanceof Error ? error.name : 'unknown',
       errorMessage: error instanceof Error ? error.message : String(error),
+      ...extractErrorCauseDetails(error),
     });
     return { error: 'خطا در ارتباط با سرور.' };
   }
