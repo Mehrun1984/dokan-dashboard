@@ -17,6 +17,18 @@ NESHAN_REVERSE_GEOCODE_URL=https://api.neshan.org/v5/reverse
 
 `NESHAN_API_KEY` is used only in the server route `/api/vendor/reverse-geocode` and is not exposed to client-side code.
 
+## OTP Login Troubleshooting (Vercel + Custom Domain)
+
+If OTP works on the Vercel default domain but fails on a custom domain (for example, showing `خطا در ارتباط با سرور.` on `/login`), check the following:
+
+1. Ensure `NEXT_PUBLIC_WP_API_URL` is set in Vercel **Production** (example: `https://beautytime24.com/wp-json`).
+2. Trigger a new Production redeploy after any environment variable or domain change.
+3. Check Vercel function logs for `[auth:send-otp]` and `[auth:verify-otp]` entries to inspect upstream failure details.
+4. Verify WordPress/CDN/WAF/security plugins are not blocking requests when traffic comes through the custom domain.
+5. Confirm OTP endpoints are reachable and return valid JSON:
+	- `/core-plugin/v1/auth/send-otp`
+	- `/core-plugin/v1/auth/verify-otp`
+
 ## Getting Started
 
 First, run the development server:
