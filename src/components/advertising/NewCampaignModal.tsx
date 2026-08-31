@@ -55,8 +55,19 @@ interface FormData {
   mode: CampaignMode;
   channels: CampaignChannel[];
   selectedCustomerIds: number[];
+  recipientRowFrom: number;
+  recipientRowCount: number;
   location: LatLng | null;
   radius: number;
+  lbsStartTime: number;
+  lbsEndTime: number;
+  lbsReceiverCount: number;
+  lbsDispatchMoment: string;
+  address: string;
+  receiverGender: string;
+  receiverAgeFrom: number;
+  receiverAgeTo: number;
+  device: string;
   templateId: number | null;
   linkType: CampaignLinkType;
   linkTargetId: number | null;
@@ -67,8 +78,19 @@ const initialForm: FormData = {
   mode: 'customer_list',
   channels: [],
   selectedCustomerIds: [],
+  recipientRowFrom: 0,
+  recipientRowCount: 1000,
   location: null,
   radius: 5,
+  lbsStartTime: 8,
+  lbsEndTime: 20,
+  lbsReceiverCount: 1000,
+  lbsDispatchMoment: 'حضور',
+  address: '',
+  receiverGender: 'همه',
+  receiverAgeFrom: 0,
+  receiverAgeTo: 0,
+  device: 'همه',
   templateId: null,
   linkType: 'service',
   linkTargetId: null,
@@ -155,12 +177,23 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const patch = (partial: Partial<FormData>) => setForm((f) => ({ ...f, ...partial }));
 
   const toggleChannel = (ch: CampaignChannel) => {
+    if (form.mode === 'location') {
+      patch({ channels: ['sms'] });
+      return;
+    }
+
     patch({
       channels: form.channels.includes(ch)
         ? form.channels.filter((c) => c !== ch)
         : [...form.channels, ch],
     });
   };
+
+  useEffect(() => {
+    if (form.mode === 'location' && (form.channels.length !== 1 || form.channels[0] !== 'sms')) {
+      patch({ channels: ['sms'] });
+    }
+  }, [form.mode, form.channels]);
 
   const toggleCustomer = (id: number) => {
     patch({
@@ -173,8 +206,32 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const canGoNext = (): boolean => {
     if (step === 1) return form.name.trim().length > 0 && form.channels.length > 0;
     if (step === 2) {
-      if (form.mode === 'customer_list') return form.selectedCustomerIds.length > 0;
-      return form.location !== null;
+      if (form.mode === 'customer_list') {
+        const rowFromValid = Number.isInteger(form.recipientRowFrom) && form.recipientRowFrom >= 0;
+        const rowCountValid = Number.isInteger(form.recipientRowCount) && form.recipientRowCount >= 1;
+        return form.selectedCustomerIds.length > 0 && rowFromValid && rowCountValid;
+      }
+
+      const hasLocation = form.location !== null;
+      const startValid = Number.isInteger(form.lbsStartTime) && form.lbsStartTime >= 0 && form.lbsStartTime <= 23;
+      const endValid = Number.isInteger(form.lbsEndTime) && form.lbsEndTime >= 0 && form.lbsEndTime <= 23;
+      const receiverCountValid =
+        Number.isInteger(form.lbsReceiverCount) && form.lbsReceiverCount >= 1;
+      const ageFromValid =
+        Number.isInteger(form.receiverAgeFrom) && form.receiverAgeFrom >= 0 && form.receiverAgeFrom <= 120;
+      const ageToValid =
+        Number.isInteger(form.receiverAgeTo) && form.receiverAgeTo >= 0 && form.receiverAgeTo <= 120;
+      const ageRangeValid = form.receiverAgeTo === 0 || form.receiverAgeFrom <= form.receiverAgeTo;
+
+      return (
+        hasLocation &&
+        startValid &&
+        endValid &&
+        receiverCountValid &&
+        ageFromValid &&
+        ageToValid &&
+        ageRangeValid
+      );
     }
     if (step === 3) {
       if (form.templateId === null) return false;
@@ -198,16 +255,27 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       const campaign = await createCampaign({
         name: form.name,
         mode: form.mode,
-        channels: form.channels,
+        channels: form.mode === 'location' ? ['sms'] : form.channels,
         template_id: form.templateId!,
         ...(usesLink
           ? { link_type: form.linkType as 'service' | 'category', link_target_id: form.linkTargetId! }
           : {}),
         ...(usesCoupon ? { coupon_id: form.linkTargetId! } : {}),
         customer_ids: form.mode === 'customer_list' ? form.selectedCustomerIds : undefined,
+        recipient_row_from: form.mode === 'customer_list' ? form.recipientRowFrom : undefined,
+        recipient_row_count: form.mode === 'customer_list' ? form.recipientRowCount : undefined,
         location_lat: form.mode === 'location' ? form.location?.lat : undefined,
         location_lng: form.mode === 'location' ? form.location?.lng : undefined,
         location_radius: form.mode === 'location' ? form.radius : undefined,
+        lbs_start_time: form.mode === 'location' ? form.lbsStartTime : undefined,
+        lbs_end_time: form.mode === 'location' ? form.lbsEndTime : undefined,
+        lbs_receiver_count: form.mode === 'location' ? form.lbsReceiverCount : undefined,
+        lbs_dispatch_moment: form.mode === 'location' ? form.lbsDispatchMoment : undefined,
+        address: form.mode === 'location' ? form.address.trim() : undefined,
+        receiver_gender: form.mode === 'location' ? form.receiverGender : undefined,
+        receiver_age_from: form.mode === 'location' ? form.receiverAgeFrom : undefined,
+        receiver_age_to: form.mode === 'location' ? form.receiverAgeTo : undefined,
+        device: form.mode === 'location' ? form.device : undefined,
       });
       await sendCampaign(campaign.id);
       onClose();
@@ -250,7 +318,12 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             <button
               key={opt.value}
               type="button"
-              onClick={() => patch({ mode: opt.value })}
+              onClick={() =>
+                patch({
+                  mode: opt.value,
+                  channels: opt.value === 'location' ? ['sms'] : form.channels,
+                })
+              }
               className={`px-4 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
                 form.mode === opt.value
                   ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
@@ -268,19 +341,26 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           کانال‌های ارسال <span className="text-red-500">*</span>
         </label>
+        {form.mode === 'location' && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+            در حالت مبتنی بر مکان، فقط ارسال پیامک فعال است.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {CHANNELS.map((ch) => {
             const selected = form.channels.includes(ch.value);
+            const isLockedByMode = form.mode === 'location' && ch.value !== 'sms';
             return (
               <button
                 key={ch.value}
                 type="button"
                 onClick={() => toggleChannel(ch.value)}
+                disabled={isLockedByMode}
                 className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-colors ${
                   selected
                     ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
-                }`}
+                } ${isLockedByMode ? 'opacity-50 cursor-not-allowed hover:border-gray-200 dark:hover:border-gray-700' : ''}`}
               >
                 <span
                   className={`w-4 h-4 rounded flex items-center justify-center border ${
@@ -317,7 +397,36 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     }
 
     return (
-      <div>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              شروع ردیف گیرندگان
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={form.recipientRowFrom}
+              onChange={(e) => patch({ recipientRowFrom: Math.max(0, Number(e.target.value) || 0) })}
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              تعداد ردیف گیرندگان
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={form.recipientRowCount}
+              onChange={(e) => patch({ recipientRowCount: Math.max(1, Number(e.target.value) || 1) })}
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          بازه گیرندگان به‌صورت ردیفی در سمت سرور اعمال می‌شود.
+        </p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
           {form.selectedCustomerIds.length} مخاطب انتخاب شده
         </p>
@@ -380,6 +489,138 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
           onChange={(e) => patch({ radius: Math.max(1, Number(e.target.value)) })}
           className="w-28 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 text-center"
         />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            ساعت شروع
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={23}
+            value={form.lbsStartTime}
+            onChange={(e) =>
+              patch({ lbsStartTime: Math.min(23, Math.max(0, Number(e.target.value) || 0)) })
+            }
+            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            ساعت پایان
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={23}
+            value={form.lbsEndTime}
+            onChange={(e) =>
+              patch({ lbsEndTime: Math.min(23, Math.max(0, Number(e.target.value) || 0)) })
+            }
+            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            تعداد گیرنده
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={form.lbsReceiverCount}
+            onChange={(e) => patch({ lbsReceiverCount: Math.max(1, Number(e.target.value) || 1) })}
+            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          وضعیت ارسال (dispatch moment)
+        </label>
+        <select
+          value={form.lbsDispatchMoment}
+          onChange={(e) => patch({ lbsDispatchMoment: e.target.value })}
+          className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+        >
+          <option value="حضور">حضور</option>
+          <option value="ورود">ورود</option>
+          <option value="خروج">خروج</option>
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          آدرس
+        </label>
+        <input
+          type="text"
+          value={form.address}
+          onChange={(e) => patch({ address: e.target.value })}
+          placeholder="مثال: تهران، ولیعصر"
+          className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            جنسیت گیرنده
+          </label>
+          <select
+            value={form.receiverGender}
+            onChange={(e) => patch({ receiverGender: e.target.value })}
+            className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+          >
+            <option value="همه">همه</option>
+            <option value="مرد">مرد</option>
+            <option value="زن">زن</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            نوع دستگاه
+          </label>
+          <select
+            value={form.device}
+            onChange={(e) => patch({ device: e.target.value })}
+            className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+          >
+            <option value="همه">همه</option>
+            <option value="اندروید">اندروید</option>
+            <option value="iOS">iOS</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            سن از
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={120}
+            value={form.receiverAgeFrom}
+            onChange={(e) =>
+              patch({ receiverAgeFrom: Math.min(120, Math.max(0, Number(e.target.value) || 0)) })
+            }
+            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            سن تا
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={120}
+            value={form.receiverAgeTo}
+            onChange={(e) =>
+              patch({ receiverAgeTo: Math.min(120, Math.max(0, Number(e.target.value) || 0)) })
+            }
+            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
+          />
+        </div>
       </div>
       {form.location && (
         <p className="text-xs text-gray-400 dir-ltr" dir="ltr">
@@ -576,20 +817,54 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             <dd className="font-medium text-gray-900 dark:text-gray-100">{channelLabels}</dd>
           </div>
           {form.mode === 'customer_list' && (
-            <div className="flex justify-between text-sm">
-              <dt className="text-gray-500">تعداد مخاطبان</dt>
-              <dd className="font-medium text-gray-900 dark:text-gray-100">
-                {form.selectedCustomerIds.length.toLocaleString('fa-IR')} نفر
-              </dd>
-            </div>
+            <>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">تعداد مخاطبان</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">
+                  {form.selectedCustomerIds.length.toLocaleString('fa-IR')} نفر
+                </dd>
+              </div>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">شروع ردیف</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">
+                  {form.recipientRowFrom.toLocaleString('fa-IR')}
+                </dd>
+              </div>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">تعداد ردیف</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">
+                  {form.recipientRowCount.toLocaleString('fa-IR')}
+                </dd>
+              </div>
+            </>
           )}
           {form.mode === 'location' && form.location && (
-            <div className="flex justify-between text-sm">
-              <dt className="text-gray-500">شعاع</dt>
-              <dd className="font-medium text-gray-900 dark:text-gray-100">
-                {form.radius.toLocaleString('fa-IR')} کیلومتر
-              </dd>
-            </div>
+            <>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">شعاع</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">
+                  {form.radius.toLocaleString('fa-IR')} کیلومتر
+                </dd>
+              </div>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">ساعت شروع</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">
+                  {form.lbsStartTime.toLocaleString('fa-IR')}
+                </dd>
+              </div>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">ساعت پایان</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">
+                  {form.lbsEndTime.toLocaleString('fa-IR')}
+                </dd>
+              </div>
+              <div className="flex justify-between text-sm">
+                <dt className="text-gray-500">تعداد گیرنده</dt>
+                <dd className="font-medium text-gray-900 dark:text-gray-100">
+                  {form.lbsReceiverCount.toLocaleString('fa-IR')}
+                </dd>
+              </div>
+            </>
           )}
           {needsLinkSelection && (
             <>

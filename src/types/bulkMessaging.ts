@@ -19,6 +19,17 @@ export interface Campaign {
   location_lat?: number;
   location_lng?: number;
   location_radius?: number;
+  recipient_row_from?: number;
+  recipient_row_count?: number;
+  lbs_start_time?: number;
+  lbs_end_time?: number;
+  lbs_receiver_count?: number;
+  lbs_dispatch_moment?: string;
+  address?: string;
+  receiver_gender?: string;
+  receiver_age_from?: number;
+  receiver_age_to?: number;
+  device?: string;
   template_id?: number;
 }
 
@@ -56,8 +67,19 @@ export interface CreateCampaignPayload {
   coupon_id?: number;
   // customer_list mode
   customer_ids?: number[];
+  recipient_row_from?: number;
+  recipient_row_count?: number;
   // location mode
   location_lat?: number;
   location_lng?: number;
   location_radius?: number;
+  lbs_start_time?: number;
+  lbs_end_time?: number;
+  lbs_receiver_count?: number;
+  lbs_dispatch_moment?: string;
+  address?: string;
+  receiver_gender?: string;
+  receiver_age_from?: number;
+  receiver_age_to?: number;
+  device?: string;
 }
