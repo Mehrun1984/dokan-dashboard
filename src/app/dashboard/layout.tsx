@@ -27,12 +27,12 @@ export default async function VendorLayout({
 
         {/* 
           Main content wrapper. 
-          - Mobile: padding bottom to clear the BottomNav (pb-20).
+          - Mobile: padding bottom to clear the BottomNav (pb-16).
           - Desktop: logical margin start (ms-64) to clear the expanded Sidebar.
           (Note: If you implement a global state for the sidebar collapse, 
           you can dynamically switch this between ms-20 and ms-64) 
         */}
-          <main className="flex-1 pb-20 md:pb-0 md:ms-64 transition-all duration-300">
+          <main className="flex-1 pb-16 md:pb-0 md:ms-64 transition-all duration-300">
             <DashboardMobileHeader />
 
             <div className="p-4 md:p-8 max-w-7xl mx-auto">

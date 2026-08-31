@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { vendorNavLinks } from '@/lib/navigation';
+import { vendorNavLinks, isNavLinkActive } from '@/lib/navigation';
 import { logoutVendor } from '@/app/actions/auth';
 import { ChevronRight, ChevronLeft, Moon, Sun, LogOut } from 'lucide-react';
 import { useDashboardTheme } from '@/providers/DashboardThemeProvider';
@@ -64,7 +64,7 @@ export default function Sidebar() {
       {/* Navigation Links */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
         {vendorNavLinks.map((link) => {
-          const isActive = pathname === link.href;
+          const isActive = isNavLinkActive(pathname, link.href);
           const Icon = link.icon;
 
           return (
