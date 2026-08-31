@@ -172,9 +172,15 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     }
   }, [isOpen, step, templates.length]);
 
-  if (!isOpen) return null;
-
   const patch = (partial: Partial<FormData>) => setForm((f) => ({ ...f, ...partial }));
+
+  useEffect(() => {
+    if (form.mode === 'location' && (form.channels.length !== 1 || form.channels[0] !== 'sms')) {
+      patch({ channels: ['sms'] });
+    }
+  }, [form.mode, form.channels]);
+
+  if (!isOpen) return null;
 
   const toggleChannel = (ch: CampaignChannel) => {
     if (form.mode === 'location') {
@@ -188,12 +194,6 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         : [...form.channels, ch],
     });
   };
-
-  useEffect(() => {
-    if (form.mode === 'location' && (form.channels.length !== 1 || form.channels[0] !== 'sms')) {
-      patch({ channels: ['sms'] });
-    }
-  }, [form.mode, form.channels]);
 
   const toggleCustomer = (id: number) => {
     patch({
