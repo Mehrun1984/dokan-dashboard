@@ -36,7 +36,7 @@ const normalizeSocialValue = (value: unknown): string => {
 
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
 
-const extractMediaUrl = (media: StoreMediaValue): string | null => {
+const extractMediaUrl = (media: StoreMediaValue | undefined): string | null => {
   if (!media) {
     return null;
   }
