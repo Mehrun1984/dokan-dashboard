@@ -32,13 +32,30 @@ export interface StoreAddressSettings {
   [key: string]: unknown;
 }
 
+export interface StoreMediaDetails {
+  id?: number;
+  url?: string;
+  src?: string;
+  thumbnail?: string;
+  sizes?: {
+    full?: { url?: string };
+    large?: { url?: string };
+    medium?: { url?: string };
+    thumbnail?: { url?: string };
+    [key: string]: { url?: string } | undefined;
+  };
+  [key: string]: unknown;
+}
+
+export type StoreMediaValue = number | string | StoreMediaDetails | null;
+
 export interface StoreSettings {
   store_name?: string;
   phone?: string;
   address?: StoreAddressSettings;
   social?: StoreSocialSettings;
-  gravatar?: number;
-  banner?: number;
+  gravatar?: StoreMediaValue;
+  banner?: StoreMediaValue;
   // Compatibility fallback for custom meta serializers.
   whatsapp?: string;
   telegram?: string;

@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { dokanService, VendorServiceAreaTerm } from '@/services/dokan.service';
 import { logoutVendor } from '@/app/actions/auth';
-import type { StoreSettings } from '@/types/dokan';
+import type { StoreMediaValue, StoreSettings } from '@/types/dokan';
 import { Store, MapPin, UploadCloud, Link as LinkIcon, LogOut, Crosshair } from 'lucide-react';
 
 const BusinessLocationMap = dynamic(() => import('@/components/profile/BusinessLocationMap'), {
@@ -34,6 +34,45 @@ const normalizeSocialValue = (value: unknown): string => {
   return typeof value === 'string' ? value : '';
 };
 
+const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const extractMediaUrl = (media: StoreMediaValue): string | null => {
+  if (!media) {
+    return null;
+  }
+
+  if (typeof media === 'string') {
+    return isHttpUrl(media) ? media : null;
+  }
+
+  if (typeof media === 'number') {
+    return null;
+  }
+
+  if (typeof media === 'object') {
+    const candidates = [
+      media.url,
+      media.src,
+      media.thumbnail,
+      media.sizes?.full?.url,
+      media.sizes?.large?.url,
+      media.sizes?.medium?.url,
+      media.sizes?.thumbnail?.url,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && isHttpUrl(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+};
+
+const previewClassName = 'mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800';
+const previewImageClassName = 'h-full w-full object-cover';
+
 export default function ProfilePage() {
   const router = useRouter();
   const { register, handleSubmit, setValue, formState: { isSubmitting } } = useForm<ProfileFormValues>();
@@ -48,6 +87,8 @@ export default function ProfilePage() {
   // States for handling file uploads seamlessly
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -56,6 +97,32 @@ export default function ProfilePage() {
   useEffect(() => {
     setIsMapReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!avatarFile) {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [avatarFile]);
+
+  useEffect(() => {
+    if (!bannerFile) {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(bannerFile);
+    setBannerPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [bannerFile]);
 
   const parseCoordinate = (input: string | undefined | null) => {
     if (!input) {
@@ -84,6 +151,8 @@ export default function ProfilePage() {
       setValue('social.twitter', settingsData.social?.twitter ?? '');
       setValue('social.whatsapp', normalizeSocialValue(settingsData.social?.whatsapp ?? settingsData.whatsapp));
       setValue('social.telegram', normalizeSocialValue(settingsData.social?.telegram ?? settingsData.telegram));
+      setAvatarPreviewUrl(extractMediaUrl(settingsData.gravatar));
+      setBannerPreviewUrl(extractMediaUrl(settingsData.banner));
 
       setValue('service_area_id', locationData.service_area?.id ? String(locationData.service_area.id) : '');
       setValue('latitude', locationData.latitude ?? '');
@@ -213,6 +282,8 @@ export default function ProfilePage() {
       // Reset file states so we don't re-upload on subsequent saves
       setAvatarFile(null);
       setBannerFile(null);
+      setAvatarPreviewUrl(extractMediaUrl(persistedSettings.gravatar));
+      setBannerPreviewUrl(extractMediaUrl(persistedSettings.banner));
 
     } catch (error) {
       alert('خطا در بروزرسانی پروفایل.');
@@ -258,6 +329,15 @@ export default function ProfilePage() {
                 className="w-full text-sm text-gray-500 dark:text-gray-400 file:me-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50"
               />
               {avatarFile && <span className="text-xs text-green-600 mt-2 block">فایل انتخاب شد: {avatarFile.name}</span>}
+              {avatarPreviewUrl ? (
+                <div className={`${previewClassName} h-28 w-28`}>
+                  <img src={avatarPreviewUrl} alt="لوگو فروشگاه" className={previewImageClassName} />
+                </div>
+              ) : (
+                <div className={`${previewClassName} flex h-28 w-28 items-center justify-center text-xs text-gray-400 dark:text-gray-500`}>
+                  پیش‌نمایش موجود نیست
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">بنر فروشگاه</label>
@@ -268,6 +348,15 @@ export default function ProfilePage() {
                 className="w-full text-sm text-gray-500 dark:text-gray-400 file:me-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-900/30 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50"
               />
               {bannerFile && <span className="text-xs text-green-600 mt-2 block">فایل انتخاب شد: {bannerFile.name}</span>}
+              {bannerPreviewUrl ? (
+                <div className={`${previewClassName} h-28 w-full`}>
+                  <img src={bannerPreviewUrl} alt="بنر فروشگاه" className={previewImageClassName} />
+                </div>
+              ) : (
+                <div className={`${previewClassName} flex h-28 w-full items-center justify-center text-xs text-gray-400 dark:text-gray-500`}>
+                  پیش‌نمایش موجود نیست
+                </div>
+              )}
             </div>
           </div>
         </div>
