@@ -94,6 +94,12 @@ export default function OTPLoginPage() {
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-gray-100 relative overflow-hidden">
         <div className="absolute top-0 inset-x-0 h-1 bg-blue-600"></div>
 
+        {(phoneForm.formState.isSubmitting || codeForm.formState.isSubmitting || isRedirecting) && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
+            <Loader2 size={32} className="animate-spin text-blue-600" />
+          </div>
+        )}
+
         <div className="text-center mb-8 flex flex-col items-center">
           <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
             <Store size={32} />
