@@ -6,7 +6,16 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { sendOtpAction, verifyOtpAction } from '@/app/actions/auth';
-import { Store, Phone, KeyRound, ArrowRight } from 'lucide-react';
+import { Store, Phone, KeyRound, ArrowRight, Loader2 } from 'lucide-react';
+
+const PERSIAN_ARABIC_DIGITS: Record<string, string> = {
+  '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
+  '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+};
+
+function toEnglishDigits(value: string) {
+  return value.replace(/[۰-۹٠-٩]/g, (digit) => PERSIAN_ARABIC_DIGITS[digit] ?? digit);
+}
 
 const phoneSchema = z.object({
   phone: z.string().regex(/^(\+98|0)?9\d{9}$/, 'شماره موبایل وارد شده معتبر نیست'),
@@ -26,7 +35,8 @@ export default function OTPLoginPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
-  
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
   const [timeLeft, setTimeLeft] = useState(COUNTDOWN_SECONDS);
   const [canResend, setCanResend] = useState(false);
 
@@ -69,8 +79,9 @@ export default function OTPLoginPage() {
     if (result.error) {
       setServerError(result.error);
     } else {
+      setIsRedirecting(true);
       router.push('/dashboard');
-      router.refresh(); 
+      router.refresh();
     }
   };
 
@@ -110,8 +121,13 @@ export default function OTPLoginPage() {
               <input
                 type="tel"
                 dir="ltr"
-                {...phoneForm.register('phone')}
-                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-start text-lg tracking-wider placeholder-gray-400"
+                disabled={phoneForm.formState.isSubmitting}
+                {...phoneForm.register('phone', {
+                  onChange: (e) => {
+                    e.target.value = toEnglishDigits(e.target.value);
+                  },
+                })}
+                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-start text-lg tracking-wider placeholder-gray-400 disabled:opacity-60"
                 placeholder="0912 345 6789"
               />
               {phoneForm.formState.errors.phone && (
@@ -124,8 +140,9 @@ export default function OTPLoginPage() {
             <button
               type="submit"
               disabled={phoneForm.formState.isSubmitting}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
+              {phoneForm.formState.isSubmitting && <Loader2 size={18} className="animate-spin" />}
               {phoneForm.formState.isSubmitting ? 'در حال ارسال...' : 'دریافت کد تایید'}
             </button>
           </form>
@@ -153,8 +170,13 @@ export default function OTPLoginPage() {
                 inputMode="numeric"
                 dir="ltr"
                 maxLength={5}
-                {...codeForm.register('code')}
-                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center text-2xl tracking-[0.5em] font-mono"
+                disabled={codeForm.formState.isSubmitting || isRedirecting}
+                {...codeForm.register('code', {
+                  onChange: (e) => {
+                    e.target.value = toEnglishDigits(e.target.value);
+                  },
+                })}
+                className="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-center text-2xl tracking-[0.5em] font-mono disabled:opacity-60"
                 placeholder="•••••"
               />
               {codeForm.formState.errors.code && (
@@ -166,10 +188,11 @@ export default function OTPLoginPage() {
 
             <button
               type="submit"
-              disabled={codeForm.formState.isSubmitting}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+              disabled={codeForm.formState.isSubmitting || isRedirecting}
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {codeForm.formState.isSubmitting ? 'در حال بررسی...' : 'ورود به داشبورد'}
+              {(codeForm.formState.isSubmitting || isRedirecting) && <Loader2 size={18} className="animate-spin" />}
+              {isRedirecting ? 'در حال انتقال...' : codeForm.formState.isSubmitting ? 'در حال بررسی...' : 'ورود به داشبورد'}
             </button>
 
             <div className="text-center pt-2">
@@ -177,8 +200,8 @@ export default function OTPLoginPage() {
                 <button
                   type="button"
                   onClick={handleResend}
-                  disabled={phoneForm.formState.isSubmitting}
-                  className="text-sm text-blue-600 font-semibold hover:text-blue-700 transition-colors"
+                  disabled={phoneForm.formState.isSubmitting || isRedirecting}
+                  className="text-sm text-blue-600 font-semibold hover:text-blue-700 transition-colors disabled:opacity-60"
                 >
                   {phoneForm.formState.isSubmitting ? 'در حال ارسال مجدد...' : 'ارسال مجدد کد'}
                 </button>
