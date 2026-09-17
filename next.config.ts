@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'beautytime24.com',
+        hostname: 'beautyme24.com',
         port: '',
         pathname: '/**',
       },
