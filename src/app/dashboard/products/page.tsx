@@ -239,7 +239,7 @@ export default function ProductsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-gray-900 dark:text-gray-100 font-bold text-sm leading-6 truncate">{product.name}</h3>
-                        {hasDiscount && (
+                        {isVip && hasDiscount && (
                           <span className="text-[10px] px-2 py-1 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 font-semibold whitespace-nowrap">
                             حراج
                           </span>
@@ -251,14 +251,16 @@ export default function ProductsPage() {
 
                   <div className="px-4 pb-4">
                     <div className="bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-1.5">
+                      <div className={`flex items-center justify-between ${isVip ? 'mb-1.5' : ''}`}>
                         <span className="text-xs text-gray-500 dark:text-gray-400">قیمت اصلی</span>
                         <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{regularPrice.toLocaleString('fa-IR')} تومان</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">قیمت حراج</span>
-                        <span className="text-sm font-semibold text-red-600 dark:text-red-300">{hasDiscount ? `${salePrice.toLocaleString('fa-IR')} تومان` : '-'}</span>
-                      </div>
+                      {isVip && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">قیمت حراج</span>
+                          <span className="text-sm font-semibold text-red-600 dark:text-red-300">{hasDiscount ? `${salePrice.toLocaleString('fa-IR')} تومان` : '-'}</span>
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -279,8 +281,8 @@ export default function ProductsPage() {
             <div className="grid grid-cols-12 gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 text-sm font-semibold text-gray-600 dark:text-gray-300">
               <div className="col-span-5">محصول</div>
               <div className="col-span-3">دسته‌بندی</div>
-              <div className="col-span-2">قیمت اصلی</div>
-              <div className="col-span-1">حراج</div>
+              <div className={isVip ? 'col-span-2' : 'col-span-3'}>قیمت اصلی</div>
+              {isVip && <div className="col-span-1">حراج</div>}
               <div className="col-span-1">عملیات</div>
             </div>
 
@@ -310,17 +312,19 @@ export default function ProductsPage() {
 
                     <div className="col-span-3 text-sm text-gray-600 dark:text-gray-300 truncate">{getCategoryLabel(product)}</div>
 
-                    <div className="col-span-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{regularPrice.toLocaleString('fa-IR')} تومان</div>
+                    <div className={`${isVip ? 'col-span-2' : 'col-span-3'} text-sm font-semibold text-gray-900 dark:text-gray-100`}>{regularPrice.toLocaleString('fa-IR')} تومان</div>
 
-                    <div className="col-span-1">
-                      {hasDiscount ? (
-                        <span className="text-xs px-2 py-1 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 font-medium">
-                          {salePrice.toLocaleString('fa-IR')}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
-                      )}
-                    </div>
+                    {isVip && (
+                      <div className="col-span-1">
+                        {hasDiscount ? (
+                          <span className="text-xs px-2 py-1 rounded-full bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 font-medium">
+                            {salePrice.toLocaleString('fa-IR')}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="col-span-1">
                       <button
