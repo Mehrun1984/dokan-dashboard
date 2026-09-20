@@ -81,7 +81,7 @@ const initialForm: FormData = {
   recipientRowFrom: 0,
   recipientRowCount: 1000,
   location: null,
-  radius: 5,
+  radius: 1000,
   lbsStartTime: 8,
   lbsEndTime: 20,
   lbsReceiverCount: 1000,
@@ -488,14 +488,15 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       />
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-          شعاع (کیلومتر)
+          شعاع (متر)
         </label>
         <input
           type="number"
-          min={1}
-          max={100}
+          min={100}
+          max={100000}
+          step={100}
           value={form.radius}
-          onChange={(e) => patch({ radius: Math.max(1, Number(e.target.value)) })}
+          onChange={(e) => patch({ radius: Math.max(100, Number(e.target.value)) })}
           className="w-28 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100 text-center"
         />
       </div>
@@ -852,7 +853,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
               <div className="flex justify-between text-sm">
                 <dt className="text-gray-500">شعاع</dt>
                 <dd className="font-medium text-gray-900 dark:text-gray-100">
-                  {form.radius.toLocaleString('fa-IR')} کیلومتر
+                  {form.radius.toLocaleString('fa-IR')} متر
                 </dd>
               </div>
               <div className="flex justify-between text-sm">
