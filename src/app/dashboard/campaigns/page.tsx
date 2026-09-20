@@ -26,6 +26,7 @@ import NewCampaignModal from '@/components/advertising/NewCampaignModal';
 import AddCustomerModal from '@/components/advertising/AddCustomerModal';
 import CouponModal from '@/components/advertising/CouponModal';
 import { dokanService } from '@/services/dokan.service';
+import { useVendorVip } from '@/hooks/useVendorVip';
 
 type Tab = 'campaigns' | 'customers' | 'coupons';
 
@@ -80,6 +81,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function CampaignsPage() {
+  const { isVip } = useVendorVip();
   const [activeTab, setActiveTab] = useState<Tab>('campaigns');
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -162,10 +164,18 @@ export default function CampaignsPage() {
   }, [activeTab, customersFetched, fetchCustomers]);
 
   useEffect(() => {
-    if (activeTab === 'coupons' && !couponsFetched) {
+    if (activeTab === 'coupons' && isVip && !couponsFetched) {
       fetchCoupons();
     }
-  }, [activeTab, couponsFetched, fetchCoupons]);
+  }, [activeTab, isVip, couponsFetched, fetchCoupons]);
+
+  // If VIP access is revoked (or hasn't loaded yet) while the coupons tab is
+  // selected, fall back to the campaigns tab so it isn't left stranded.
+  useEffect(() => {
+    if (activeTab === 'coupons' && !isVip) {
+      setActiveTab('campaigns');
+    }
+  }, [activeTab, isVip]);
 
   // ── Campaign actions ────────────────────────────────────────────────────────
 
@@ -656,11 +666,15 @@ export default function CampaignsPage() {
 
       {/* Tab switcher */}
       <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-6 w-fit">
-        {([
-          { key: 'campaigns', label: 'کمپین‌ها', icon: Megaphone },
-          { key: 'customers', label: 'مخاطبان', icon: Users },
-          { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent },
-        ] as const).map(({ key, label, icon: Icon }) => (
+        {(
+          [
+            { key: 'campaigns', label: 'کمپین‌ها', icon: Megaphone },
+            { key: 'customers', label: 'مخاطبان', icon: Users },
+            isVip ? { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent } : null,
+          ] as Array<{ key: Tab; label: string; icon: typeof Megaphone } | null>
+        )
+          .filter((tab): tab is { key: Tab; label: string; icon: typeof Megaphone } => tab !== null)
+          .map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}

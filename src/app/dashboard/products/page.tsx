@@ -6,6 +6,7 @@ import { dokanService } from '@/services/dokan.service';
 import EditPriceModal from '@/components/products/EditPriceModal';
 import { AlertCircle, ArrowDownUp, Edit2, PackageSearch, Search } from 'lucide-react';
 import Image from 'next/image';
+import { useVendorVip } from '@/hooks/useVendorVip';
 
 type SortMode = 'newest' | 'name' | 'price-asc' | 'price-desc' | 'discounted';
 
@@ -26,6 +27,8 @@ export default function ProductsPage() {
   // Modal State
   const [selectedProduct, setSelectedProduct] = useState<DokanProduct | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const { isVip } = useVendorVip();
 
   useEffect(() => {
     fetchProducts();
@@ -337,8 +340,9 @@ export default function ProductsPage() {
       )}
 
       {/* The Edit Modal */}
-      <EditPriceModal 
+      <EditPriceModal
         isOpen={isModalOpen}
+        isVip={isVip}
         product={selectedProduct}
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleProductUpdated}
