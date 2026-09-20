@@ -175,7 +175,10 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const patch = (partial: Partial<FormData>) => setForm((f) => ({ ...f, ...partial }));
 
   useEffect(() => {
-    if (form.mode === 'location' && (form.channels.length !== 1 || form.channels[0] !== 'sms')) {
+    if (
+      (form.mode === 'location' || form.mode === 'customer_list') &&
+      (form.channels.length !== 1 || form.channels[0] !== 'sms')
+    ) {
       patch({ channels: ['sms'] });
     }
   }, [form.mode, form.channels]);
@@ -183,7 +186,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   if (!isOpen) return null;
 
   const toggleChannel = (ch: CampaignChannel) => {
-    if (form.mode === 'location') {
+    if (form.mode === 'location' || form.mode === 'customer_list') {
       patch({ channels: ['sms'] });
       return;
     }
@@ -346,10 +349,16 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             در حالت مبتنی بر مکان، فقط ارسال پیامک فعال است.
           </p>
         )}
+        {form.mode === 'customer_list' && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+            در حال حاضر برای لیست مخاطبان، فقط ارسال پیامک فعال است.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {CHANNELS.map((ch) => {
             const selected = form.channels.includes(ch.value);
-            const isLockedByMode = form.mode === 'location' && ch.value !== 'sms';
+            const isLockedByMode =
+              (form.mode === 'location' || form.mode === 'customer_list') && ch.value !== 'sms';
             return (
               <button
                 key={ch.value}
