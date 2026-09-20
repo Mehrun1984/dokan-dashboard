@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,19 +23,16 @@ interface EditPriceModalProps {
 }
 
 export default function EditPriceModal({ product, isOpen, onClose, onSuccess }: EditPriceModalProps) {
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<PriceFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<PriceFormData>({
     resolver: zodResolver(priceSchema),
+    // Keep the form in sync with the product prop as soon as it's available,
+    // instead of an effect-driven reset() which can lose the race with the
+    // form's own mount on the very first open.
+    values: {
+      regular_price: product?.regular_price || '',
+      sale_price: product?.sale_price || '',
+    },
   });
-
-  // Populate form when modal opens with a new product
-  useEffect(() => {
-    if (product) {
-      reset({
-        regular_price: product.regular_price || '',
-        sale_price: product.sale_price || '',
-      });
-    }
-  }, [product, reset]);
 
   if (!isOpen || !product) return null;
 
