@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/blog", "destination": "https://beautyme24.com/blog" },
+    { "source": "/blog", "destination": "https://beautyme24.com/blog/" },
     { "source": "/blog/:path*", "destination": "https://beautyme24.com/blog/:path*" }
   ]
 }
