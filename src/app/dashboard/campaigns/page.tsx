@@ -715,30 +715,32 @@ export default function CampaignsPage() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-6 w-fit">
-        {(
-          [
-            { key: 'campaigns', label: 'کمپین‌ها', icon: Megaphone },
-            { key: 'customers', label: 'مخاطبان', icon: Users },
-            isVip ? { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent } : null,
-            { key: 'social', label: 'شبکه اجتماعی', icon: Share2 },
-          ] as Array<{ key: Tab; label: string; icon: typeof Megaphone } | null>
-        )
-          .filter((tab): tab is { key: Tab; label: string; icon: typeof Megaphone } => tab !== null)
-          .map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === key
-                ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </button>
-        ))}
+      <div className="max-w-full overflow-x-auto mb-6">
+        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit">
+          {(
+            [
+              { key: 'campaigns', label: 'کمپین‌ها', icon: Megaphone },
+              { key: 'customers', label: 'مخاطبان', icon: Users },
+              isVip ? { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent } : null,
+              { key: 'social', label: 'شبکه اجتماعی', icon: Share2 },
+            ] as Array<{ key: Tab; label: string; icon: typeof Megaphone } | null>
+          )
+            .filter((tab): tab is { key: Tab; label: string; icon: typeof Megaphone } => tab !== null)
+            .map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                activeTab === key
+                  ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Content */}
