@@ -28,6 +28,7 @@ const codeSchema = z.object({
 type CodeFormData = z.infer<typeof codeSchema>;
 
 const COUNTDOWN_SECONDS = 120;
+const LOGIN_NOT_ALLOWED_CODE = 'login_not_allowed';
 
 export default function OTPLoginPage() {
   const router = useRouter();
@@ -64,12 +65,19 @@ export default function OTPLoginPage() {
 
     if (result.error) {
       setServerError(result.error);
-    } else {
-      setPhoneNumber(data.phone);
-      setStep(2);
-      setTimeLeft(COUNTDOWN_SECONDS);
-      setCanResend(false);
+
+      if (result.code === LOGIN_NOT_ALLOWED_CODE) {
+        codeForm.reset();
+        setStep(1);
+      }
+
+      return;
     }
+
+    setPhoneNumber(data.phone);
+    setStep(2);
+    setTimeLeft(COUNTDOWN_SECONDS);
+    setCanResend(false);
   };
 
   const onCodeSubmit = async (data: CodeFormData) => {
@@ -78,11 +86,18 @@ export default function OTPLoginPage() {
 
     if (result.error) {
       setServerError(result.error);
-    } else {
-      setIsRedirecting(true);
-      router.push('/dashboard');
-      router.refresh();
+
+      if (result.code === LOGIN_NOT_ALLOWED_CODE) {
+        codeForm.reset();
+        setStep(1);
+      }
+
+      return;
     }
+
+    setIsRedirecting(true);
+    router.push('/dashboard');
+    router.refresh();
   };
 
   const handleResend = () => {

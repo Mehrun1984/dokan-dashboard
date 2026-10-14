@@ -36,6 +36,20 @@ function extractApiMessage(payload: unknown, fallback: string) {
   return fallback;
 }
 
+const LOGIN_NOT_ALLOWED_CODE = 'login_not_allowed';
+
+function isLoginNotAllowed(status: number, payload: unknown) {
+  if (status === 403) {
+    return true;
+  }
+
+  if (payload && typeof payload === 'object' && 'code' in payload) {
+    return (payload as { code?: unknown }).code === LOGIN_NOT_ALLOWED_CODE;
+  }
+
+  return false;
+}
+
 function createRequestId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -97,6 +111,18 @@ export async function sendOtpAction(phone: string) {
     const rawText = await res.text();
     const data = parseJsonSafely(rawText);
 
+    if (isLoginNotAllowed(res.status, data)) {
+      logOtpFailure('send-otp', {
+        requestId,
+        reason: LOGIN_NOT_ALLOWED_CODE,
+        status: res.status,
+        statusText: res.statusText,
+        targetHost: new URL(targetUrl).host,
+        responseSnippet: rawText.slice(0, 400),
+      });
+      return { error: extractApiMessage(data, 'خطا در ارسال پیامک.'), code: LOGIN_NOT_ALLOWED_CODE };
+    }
+
     if (!res.ok) {
       logOtpFailure('send-otp', {
         requestId,
@@ -146,7 +172,19 @@ export async function verifyOtpAction(phone: string, code: string) {
     });
 
     const rawText = await res.text();
-    const data = parseJsonSafely(rawText) as { token?: unknown; user_id?: unknown; message?: unknown } | null;
+    const data = parseJsonSafely(rawText) as { token?: unknown; user_id?: unknown; message?: unknown; code?: unknown } | null;
+
+    if (isLoginNotAllowed(res.status, data)) {
+      logOtpFailure('verify-otp', {
+        requestId,
+        reason: LOGIN_NOT_ALLOWED_CODE,
+        status: res.status,
+        statusText: res.statusText,
+        targetHost: new URL(targetUrl).host,
+        responseSnippet: rawText.slice(0, 400),
+      });
+      return { error: extractApiMessage(data, 'خطا در بررسی کد تایید.'), code: LOGIN_NOT_ALLOWED_CODE };
+    }
 
     if (!res.ok) {
       logOtpFailure('verify-otp', {
