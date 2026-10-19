@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Check, Rocket, Zap } from 'lucide-react';
 import {
   createCampaign,
   sendCampaign,
@@ -102,7 +102,10 @@ interface Props {
   onSuccess: () => void;
 }
 
+type ModalView = 'choice' | 'form' | 'setup';
+
 export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) {
+  const [view, setView] = useState<ModalView>('choice');
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>(initialForm);
   const [customers, setCustomers] = useState<BulkCustomer[]>([]);
@@ -119,6 +122,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   // Reset when closed
   useEffect(() => {
     if (!isOpen) {
+      setView('choice');
       setStep(1);
       setForm(initialForm);
       setSubmitError(null);
@@ -907,6 +911,71 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
 
   const stepTitles = ['اطلاعات پایه', 'مخاطبان', 'پیام و لینک', 'تأیید نهایی'];
 
+  const renderChoiceView = () => {
+    const options = [
+      {
+        key: 'form' as ModalView,
+        icon: Rocket,
+        title: 'ارسال هوشمند کمپین',
+        description: 'تنظیمات و راه‌اندازی دستی کمپین',
+        iconClasses: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
+      },
+      {
+        key: 'setup' as ModalView,
+        icon: Zap,
+        title: 'راه‌اندازی کمپین',
+        description: 'ساخت کمپین با فرم مرحله‌به‌مرحله هوشمند',
+        iconClasses: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+      },
+    ];
+
+    return (
+      <div className="flex flex-col justify-center py-2">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5 leading-6">
+          برای شروع کمپین جدید، یکی از گزینه‌های زیر را انتخاب کنید.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {options.map(({ key, icon: Icon, title, description, iconClasses }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              className="group flex flex-col items-start text-right gap-3 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors"
+            >
+              <span
+                className={`flex items-center justify-center w-11 h-11 rounded-xl ${iconClasses}`}
+              >
+                <Icon className="w-5 h-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {title}
+                </span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1 leading-5">
+                  {description}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSetupPlaceholder = () => (
+    <div className="flex flex-col justify-center py-2">
+      <div className="flex items-center gap-3 mb-4">
+        <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+          <Zap className="w-5 h-5" />
+        </span>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">راه‌اندازی کمپین</h3>
+      </div>
+      <p className="text-sm text-gray-500 dark:text-gray-400 leading-6 text-center px-4 py-8 rounded-2xl bg-gray-50 dark:bg-gray-800">
+        محتوای این بخش به‌زودی اضافه می‌شود
+      </p>
+    </div>
+  );
+
   return (
     <>
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -914,41 +983,51 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">کمپین جدید</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              مرحله {step.toLocaleString('fa-IR')} از ۴ — {stepTitles[step - 1]}
-            </p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {view === 'setup' ? 'راه‌اندازی کمپین' : 'کمپین جدید'}
+            </h2>
+            {view === 'form' && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                مرحله {step.toLocaleString('fa-IR')} از ۴ — {stepTitles[step - 1]}
+              </p>
+            )}
           </div>
           <button
-            onClick={onClose}
+            onClick={() => (view === 'choice' ? onClose() : setView('choice'))}
             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
           >
-            <X className="w-5 h-5" />
+            {view === 'choice' ? <X className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
-        </div>
-
-        {/* Step indicator */}
-        <div className="flex px-6 pt-4 gap-1.5">
-          {[1, 2, 3, 4].map((s) => (
-            <div
-              key={s}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                s <= step ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
-              }`}
-            />
-          ))}
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {step === 1 && renderStep1()}
-          {step === 2 && form.mode === 'customer_list' && renderStep2CustomerList()}
-          {step === 2 && form.mode === 'location' && renderStep2Location()}
-          {step === 3 && renderStep3()}
-          {step === 4 && renderStep4()}
+          {view === 'choice' && renderChoiceView()}
+          {view === 'setup' && renderSetupPlaceholder()}
+          {view === 'form' && (
+            <>
+              {/* Step indicator */}
+              <div className="flex px-0 pt-0 pb-5 gap-1.5">
+                {[1, 2, 3, 4].map((s) => (
+                  <div
+                    key={s}
+                    className={`h-1 flex-1 rounded-full transition-colors ${
+                      s <= step ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+                    }`}
+                  />
+                ))}
+              </div>
+              {step === 1 && renderStep1()}
+              {step === 2 && form.mode === 'customer_list' && renderStep2CustomerList()}
+              {step === 2 && form.mode === 'location' && renderStep2Location()}
+              {step === 3 && renderStep3()}
+              {step === 4 && renderStep4()}
+            </>
+          )}
         </div>
 
         {/* Footer */}
+        {view === 'form' && (
         <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
           {step > 1 ? (
             <button
@@ -992,6 +1071,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             </button>
           )}
         </div>
+        )}
       </div>
     </div>
 
