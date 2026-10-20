@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Loader2, RefreshCw, X } from 'lucide-react';
+import { ChevronRight, Camera, Loader2, Megaphone, MessageCircle, Pin, RefreshCw, Send, Sparkles, Target, TrendingUp, Users, Clapperboard, Film, MessagesSquare, Image as ImageIcon, PenLine, BadgeDollarSign, X } from 'lucide-react';
 import {
   CampaignFormDefinition,
   CampaignFormField,
@@ -28,6 +28,39 @@ type ValuesMap = Record<string, string | string[]>;
 
 const JALALI_DATE_RE = /^\d{4}\/\d{1,2}\/\d{1,2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type LucideIcon = React.ComponentType<{ className?: string }>;
+
+const CHOICE_ICON_RULES: Array<[RegExp, LucideIcon]> = [
+  [/اینستاگرام/, Camera],
+  [/تلگرام ادز/, Megaphone],
+  [/تلگرام/, Send],
+  [/روبیکا|بله(?!مب)/, MessageCircle],
+  [/پین/, Pin],
+  [/پیام انبوه/, MessagesSquare],
+  [/ریلز|استوری|ویدیو|فیلم|بنر/, Clapperboard],
+  [/پست/, ImageIcon],
+  [/محتوای تبلیغ|اینفلوئنسر/, PenLine],
+  [/آگاهی از برند/, Megaphone],
+  [/ترافیک/, TrendingUp],
+  [/مشتری بالقوه|لید|Lead/i, Users],
+  [/فروش/, BadgeDollarSign],
+];
+
+const CHOICE_ICON_FALLBACKS: LucideIcon[] = [Target, Sparkles, Megaphone, TrendingUp];
+
+const CHOICE_COLORS = [
+  'text-amber-500 bg-amber-500/10',
+  'text-blue-500 bg-blue-500/10',
+  'text-emerald-500 bg-emerald-500/10',
+  'text-violet-500 bg-violet-500/10',
+  'text-rose-500 bg-rose-500/10',
+];
+
+function choiceIcon(label: string, index: number): { Icon: LucideIcon; tint: string } {
+  const Icon = CHOICE_ICON_RULES.find(([re]) => re.test(label))?.[1] ?? CHOICE_ICON_FALLBACKS[index % CHOICE_ICON_FALLBACKS.length];
+  return { Icon, tint: CHOICE_COLORS[index % CHOICE_COLORS.length] };
+}
 
 export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
   const [definition, setDefinition] = useState<CampaignFormDefinition | null>(null);
@@ -298,6 +331,8 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
       case 'radio':
       case 'select': {
         const value = typeof values[field.name] === 'string' ? (values[field.name] as string) : '';
+        const choices = field.choices ?? [];
+        const wide = choices.length <= 1;
         return (
           <div key={field.id}>
             <label className={labelClass}>
@@ -305,23 +340,44 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
               {requiredMark}
             </label>
             {hint}
-            <div className={`flex flex-col gap-2${invalidRing}`}>
-              {(field.choices ?? []).map((choice) => (
-                <label
-                  key={choice.value}
-                  className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100 cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name={`wpforms-field-${field.id}`}
-                    value={choice.value}
-                    checked={value === choice.value}
-                    onChange={() => setValue(field.name, choice.value)}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  {choice.label}
-                </label>
-              ))}
+            <div
+              className={`grid gap-3.5 mt-1${invalidRing} ${
+                wide ? 'grid-cols-1' : choices.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'
+              }`}
+            >
+              {choices.map((choice, i) => {
+                const selected = value === choice.value;
+                const { Icon, tint } = choiceIcon(choice.label, i);
+                return (
+                  <label
+                    key={choice.value}
+                    className={`group relative flex items-center gap-3 rounded-2xl border p-3.5 cursor-pointer select-none transition-all ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-500/10 ring-1 ring-blue-500 shadow-sm'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 hover:border-blue-300 dark:hover:border-blue-600/60 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`wpforms-field-${field.id}`}
+                      value={choice.value}
+                      checked={selected}
+                      onChange={() => setValue(field.name, choice.value)}
+                      className="sr-only"
+                    />
+                    <span className="flex-1 text-sm leading-6 font-medium text-gray-900 dark:text-gray-100 break-words">
+                      {choice.label}
+                    </span>
+                    <span
+                      className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 transition-all ${tint} ${
+                        selected ? 'scale-105' : 'opacity-90 group-hover:scale-105'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </span>
+                  </label>
+                );
+              })}
             </div>
             {errorText}
           </div>
@@ -329,6 +385,8 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
       }
       case 'checkbox': {
         const current = Array.isArray(values[field.name]) ? (values[field.name] as string[]) : [];
+        const choices = field.choices ?? [];
+        const wide = choices.length <= 1;
         return (
           <div key={field.id}>
             <label className={labelClass}>
@@ -336,26 +394,47 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
               {requiredMark}
             </label>
             {hint}
-            <div className={`flex flex-col gap-2${invalidRing}`}>
-              {(field.choices ?? []).map((choice) => (
-                <label
-                  key={choice.value}
-                  className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={current.includes(choice.value)}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...current, choice.value]
-                        : current.filter((v) => v !== choice.value);
-                      setValue(field.name, next);
-                    }}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  {choice.label}
-                </label>
-              ))}
+            <div
+              className={`grid gap-3.5 mt-1${invalidRing} ${
+                wide ? 'grid-cols-1' : choices.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'
+              }`}
+            >
+              {choices.map((choice, i) => {
+                const selected = current.includes(choice.value);
+                const { Icon, tint } = choiceIcon(choice.label, i);
+                return (
+                  <label
+                    key={choice.value}
+                    className={`group relative flex items-center gap-3 rounded-2xl border p-3.5 cursor-pointer select-none transition-all ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-500/10 ring-1 ring-blue-500 shadow-sm'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 hover:border-blue-300 dark:hover:border-blue-600/60 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...current, choice.value]
+                          : current.filter((v) => v !== choice.value);
+                        setValue(field.name, next);
+                      }}
+                      className="sr-only"
+                    />
+                    <span className="flex-1 text-sm leading-6 font-medium text-gray-900 dark:text-gray-100 break-words">
+                      {choice.label}
+                    </span>
+                    <span
+                      className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 transition-all ${tint} ${
+                        selected ? 'scale-105' : 'opacity-90 group-hover:scale-105'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </span>
+                  </label>
+                );
+              })}
             </div>
             {errorText}
           </div>

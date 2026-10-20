@@ -319,7 +319,7 @@ export async function fetchCampaignFormDefinition(pageHtml?: string): Promise<Wp
     const segEnd = i + 1 < containerTags.length ? containerTags[i + 1].index : formHtml.length;
     const segment = formHtml.slice(segStart, segEnd);
     const field = parseField(segment, formId, id, attrs);
-    if (field) fields.push(field);
+    if (field && field.id !== 1) fields.push(field);
   });
 
   return {
