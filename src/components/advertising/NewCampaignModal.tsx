@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { X, ChevronRight, ChevronLeft, Check, Rocket, Zap } from 'lucide-react';
+import CampaignSetupForm from './CampaignSetupForm';
 import {
   createCampaign,
   sendCampaign,
@@ -963,17 +964,13 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   };
 
   const renderSetupPlaceholder = () => (
-    <div className="flex flex-col justify-center py-2">
-      <div className="flex items-center gap-3 mb-4">
-        <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-          <Zap className="w-5 h-5" />
-        </span>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">راه‌اندازی کمپین</h3>
-      </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400 leading-6 text-center px-4 py-8 rounded-2xl bg-gray-50 dark:bg-gray-800">
-        محتوای این بخش به‌زودی اضافه می‌شود
-      </p>
-    </div>
+    <CampaignSetupForm
+      onBack={() => setView('choice')}
+      onSuccess={() => {
+        onSuccess();
+        onClose();
+      }}
+    />
   );
 
   return (
