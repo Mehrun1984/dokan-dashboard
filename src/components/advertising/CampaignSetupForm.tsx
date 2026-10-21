@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import JalaliDatePicker from '@/components/advertising/JalaliDatePicker';
 import { ChevronRight, Camera, Loader2, Megaphone, MessageCircle, Pin, RefreshCw, Send, Sparkles, Target, TrendingUp, Users, Clapperboard, Film, MessagesSquare, Image as ImageIcon, PenLine, BadgeDollarSign, X } from 'lucide-react';
 import {
   CampaignFormDefinition,
@@ -316,13 +317,12 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
               {field.label}
               {requiredMark}
             </label>
-            <p className={hintClass}>قالب تاریخ: ۱۴۰۴/۰۱/۰۱</p>
-            <input
-              type="text"
-              dir="ltr"
+            <p className={hintClass}>انتخاب تاریخ از تقویم شمسی</p>
+            <JalaliDatePicker
               value={value}
-              onChange={(e) => setValue(field.name, e.target.value.replace(/[^\d/]/g, ''))}
-              className={`${inputClass} text-left${invalidRing}`}
+              onChange={(v) => setValue(field.name, v)}
+              placeholder="۱۴۰۴/۰۱/۰۱"
+              inputClass={`${inputClass}${invalidRing}`}
             />
             {errorText}
           </div>
