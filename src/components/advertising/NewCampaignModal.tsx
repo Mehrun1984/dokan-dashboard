@@ -917,14 +917,14 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       {
         key: 'form' as ModalView,
         icon: Rocket,
-        title: 'ارسال هوشمند کمپین',
+        title: 'راه‌اندازی کمپین',
         description: 'تنظیمات و راه‌اندازی دستی کمپین',
         iconClasses: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
       },
       {
         key: 'setup' as ModalView,
         icon: Zap,
-        title: 'راه‌اندازی کمپین',
+        title: 'ارسال هوشمند کمپین',
         description: 'ساخت کمپین با فرم مرحله‌به‌مرحله هوشمند',
         iconClasses: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
       },
