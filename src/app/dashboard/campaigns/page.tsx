@@ -11,8 +11,6 @@ import {
   Trash2,
   TicketPercent,
   Pencil,
-  Share2,
-  ExternalLink,
 } from 'lucide-react';
 import {
   getCampaigns,
@@ -29,11 +27,8 @@ import AddCustomerModal from '@/components/advertising/AddCustomerModal';
 import CouponModal from '@/components/advertising/CouponModal';
 import { dokanService } from '@/services/dokan.service';
 import { useVendorVip } from '@/hooks/useVendorVip';
-import { useDashboardStore } from '@/providers/DashboardStoreProvider';
 
-type Tab = 'campaigns' | 'customers' | 'coupons' | 'social';
-
-const SOCIAL_CAMPAIGN_FORM_URL = 'https://beautyme24.com/social-campaign-form/';
+type Tab = 'campaigns' | 'customers' | 'coupons';
 
 const STATUS_LABELS: Record<CampaignStatus, string> = {
   draft: 'پیش‌نویس',
@@ -87,9 +82,7 @@ function formatDate(dateStr: string): string {
 
 export default function CampaignsPage() {
   const { isVip } = useVendorVip();
-  const { shopName } = useDashboardStore();
   const [activeTab, setActiveTab] = useState<Tab>('campaigns');
-  const [vendorPhone, setVendorPhone] = useState<string | null>(null);
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCampaignsLoading, setIsCampaignsLoading] = useState(true);
@@ -175,15 +168,6 @@ export default function CampaignsPage() {
       fetchCoupons();
     }
   }, [activeTab, isVip, couponsFetched, fetchCoupons]);
-
-  useEffect(() => {
-    if (activeTab === 'social' && vendorPhone === null) {
-      dokanService
-        .getStoreSettings()
-        .then((settings) => setVendorPhone(settings?.phone || ''))
-        .catch(() => setVendorPhone(''));
-    }
-  }, [activeTab, vendorPhone]);
 
   // If VIP access is revoked (or hasn't loaded yet) while the coupons tab is
   // selected, fall back to the campaigns tab so it isn't left stranded.
@@ -297,13 +281,6 @@ export default function CampaignsPage() {
       return `${value.toLocaleString('fa-IR')}%`;
     }
     return `${value.toLocaleString('fa-IR')} تومان`;
-  };
-
-  const buildSocialCampaignFormUrl = (): string => {
-    const url = new URL(SOCIAL_CAMPAIGN_FORM_URL);
-    if (shopName) url.searchParams.set('vendor_name', shopName);
-    if (vendorPhone) url.searchParams.set('vendor_phone', vendorPhone);
-    return url.toString();
   };
 
   // ── Renders ─────────────────────────────────────────────────────────────────
@@ -663,55 +640,28 @@ export default function CampaignsPage() {
     );
   };
 
-  const renderSocial = () => {
-    return (
-      <div className="flex flex-col items-center justify-center text-center py-16 px-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-        <Share2 className="w-14 h-14 mb-4 text-blue-500 opacity-80" />
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 max-w-md">
-          درخواست کمپین در شبکه‌های اجتماعی
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-md leading-6">
-          برای ثبت درخواست تبلیغ فروشگاه خود در شبکه‌های اجتماعی (اینستاگرام و ...)، فرم مربوطه را
-          تکمیل کنید. اطلاعات فروشگاه شما به‌صورت خودکار برای این فرم ارسال می‌شود تا درخواست شما
-          قابل شناسایی باشد.
-        </p>
-        <a
-          href={buildSocialCampaignFormUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 mt-6 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
-        >
-          <ExternalLink className="w-4 h-4" />
-          تکمیل فرم درخواست
-        </a>
-      </div>
-    );
-  };
-
   return (
     <div className="max-w-4xl mx-auto">
       {/* Page header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">تبلیغات</h1>
-        {activeTab !== 'social' && (
-          <button
-            onClick={() =>
-              activeTab === 'campaigns'
-                ? setShowNewCampaign(true)
-                : activeTab === 'customers'
-                  ? setShowAddCustomer(true)
-                  : openNewCouponModal()
-            }
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            {activeTab === 'campaigns'
-              ? 'کمپین جدید'
+        <button
+          onClick={() =>
+            activeTab === 'campaigns'
+              ? setShowNewCampaign(true)
               : activeTab === 'customers'
-                ? 'افزودن مخاطب'
-                : 'کوپن جدید'}
-          </button>
-        )}
+                ? setShowAddCustomer(true)
+                : openNewCouponModal()
+          }
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          {activeTab === 'campaigns'
+            ? 'کمپین جدید'
+            : activeTab === 'customers'
+              ? 'افزودن مخاطب'
+              : 'کوپن جدید'}
+        </button>
       </div>
 
       {/* Tab switcher */}
@@ -722,7 +672,6 @@ export default function CampaignsPage() {
               { key: 'campaigns', label: 'کمپین‌ها', icon: Megaphone },
               { key: 'customers', label: 'مخاطبان', icon: Users },
               isVip ? { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent } : null,
-              { key: 'social', label: 'شبکه اجتماعی', icon: Share2 },
             ] as Array<{ key: Tab; label: string; icon: typeof Megaphone } | null>
           )
             .filter((tab): tab is { key: Tab; label: string; icon: typeof Megaphone } => tab !== null)
@@ -750,7 +699,7 @@ export default function CampaignsPage() {
           ? renderCustomers()
           : activeTab === 'coupons'
             ? renderCoupons()
-            : renderSocial()}
+            : null}
 
       {/* Modals */}
       <NewCampaignModal
