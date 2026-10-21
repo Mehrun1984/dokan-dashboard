@@ -227,17 +227,21 @@ export default function JalaliDatePicker({ value, onChange, placeholder, inputCl
                 if (!c) return <span key={`x${i}`} />;
                 const isSelected = parsed?.jy === view.y && parsed?.jm === view.m && parsed.jd === c.day;
                 const isToday = today.jy === view.y && today.jm === view.m && today.jd === c.day;
+                const isPast = j2d(view.y, view.m, c.day) < j2d(today.jy, today.jm, today.jd);
                 return (
                   <button
                     key={c.day}
                     type="button"
+                    disabled={isPast}
                     onClick={() => select(view.y, view.m, c.day)}
                     className={`h-8 rounded-lg text-xs transition-colors ${
                       isSelected
                         ? 'bg-blue-600 text-white font-semibold'
                         : isToday
                           ? 'text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-blue-500/10'
-                          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          : isPast
+                            ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     {c.day}
