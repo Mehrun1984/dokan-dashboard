@@ -12,11 +12,14 @@ import {
   getCoupons,
   getVendorStoreCategory,
 } from '@/services/bulkMessaging.service';
+import {
+  getCampaignFormDefinition,
+  type CampaignFormDefinition,
+} from '@/services/campaignForm.service';
 import { dokanService } from '@/services/dokan.service';
 import type {
   BulkCoupon,
   BulkCustomer,
-  CampaignChannel,
   CampaignLinkType,
   CampaignMode,
   MessageTemplate,
@@ -28,12 +31,26 @@ const BusinessLocationMap = dynamic(
   { ssr: false },
 );
 
-const CHANNELS: { value: CampaignChannel; label: string }[] = [
+const CHANNELS = [
   { value: 'sms', label: 'پیامک (SMS)' },
-  { value: 'bale', label: 'بله (Bale)' },
-  { value: 'telegram', label: 'تلگرام' },
-  { value: 'whatsapp', label: 'واتساپ' },
 ];
+
+/** Picks the WPForms radio field whose choices drive the most conditional rules (the campaign-type field). */
+function pickChannelField(def: CampaignFormDefinition) {
+  const radios = def.fields.filter((f) => f.type === 'radio' && (f.choices?.length ?? 0) >= 2);
+  if (radios.length === 0) return null;
+  const depCount = new Map<string, number>();
+  Object.values(def.conditional).forEach((c) =>
+    (c.rules ?? []).forEach((row) =>
+      row.forEach((r) => depCount.set(r.field, (depCount.get(r.field) ?? 0) + 1)),
+    ),
+  );
+  const eligible = radios
+    .map((f) => ({ id: f.id, choices: f.choices!, score: depCount.get(String(f.id)) ?? 0 }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return eligible.length > 0 ? eligible[0] : null;
+}
 
 const LINK_TYPES: { value: CampaignLinkType; label: string }[] = [
   { value: 'service', label: 'خدمت / محصول' },
@@ -54,7 +71,8 @@ const DEFAULT_CENTER: LatLng = { lat: 35.6892, lng: 51.389 };
 interface FormData {
   name: string;
   mode: CampaignMode;
-  channels: CampaignChannel[];
+  channels: string[];
+  goal: string;
   selectedCustomerIds: number[];
   recipientRowFrom: number;
   recipientRowCount: number;
@@ -78,6 +96,7 @@ const initialForm: FormData = {
   name: '',
   mode: 'customer_list',
   channels: [],
+  goal: '',
   selectedCustomerIds: [],
   recipientRowFrom: 0,
   recipientRowCount: 1000,
@@ -105,10 +124,43 @@ interface Props {
 
 type ModalView = 'choice' | 'form' | 'setup';
 
+type StackKind = 'base' | 'audience' | 'template' | 'summary' | 'wpform' | 'results';
+
+interface StackItem {
+  kind: StackKind;
+  channelValue?: string;
+  channelLabel?: string;
+}
+
+const STACK_LABELS: Record<Exclude<StackKind, 'wpform'>, string> = {
+  base: 'اطلاعات پایه',
+  audience: 'مخاطبان',
+  template: 'پیام و لینک',
+  summary: 'تأیید نهایی',
+  results: 'نتیجه ارسال',
+};
+
+interface WpChannelResult {
+  ok: boolean;
+  confirmation?: string;
+  error?: string;
+}
+
 export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) {
   const [view, setView] = useState<ModalView>('choice');
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>(initialForm);
+  const [wpChannelChoices, setWpChannelChoices] = useState<{ value: string; label: string }[]>([]);
+  const [wpChannelFieldId, setWpChannelFieldId] = useState<number | null>(null);
+  const [wpChannelsLoading, setWpChannelsLoading] = useState(false);
+  const [wpChannelsFatal, setWpChannelsFatal] = useState(false);
+  const [goalField, setGoalField] = useState<{
+    id: number;
+    label: string;
+    choices: { value: string; label: string }[];
+  } | null>(null);
+  const [titleFieldId, setTitleFieldId] = useState<number | null>(null);
+  const [wpResults, setWpResults] = useState<Record<string, WpChannelResult>>({});
   const [customers, setCustomers] = useState<BulkCustomer[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [products, setProducts] = useState<DokanProduct[]>([]);
@@ -126,9 +178,58 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       setView('choice');
       setStep(1);
       setForm(initialForm);
+      setWpChannelChoices([]);
+      setWpChannelFieldId(null);
+      setWpChannelsLoading(false);
+      setWpChannelsFatal(false);
+      setGoalField(null);
+      setTitleFieldId(null);
+      setWpResults({});
       setSubmitError(null);
       setPreviewTemplate(null);
     }
+  }, [isOpen]);
+
+  // Load the WPForm 2003 channel options (choices of its campaign-type radio) on open
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setWpChannelsLoading(true);
+    setWpChannelsFatal(false);
+    getCampaignFormDefinition()
+      .then((def) => {
+        if (cancelled) return;
+        const field = pickChannelField(def);
+        if (field && field.choices.length > 0) {
+          setWpChannelChoices(field.choices);
+          setWpChannelFieldId(field.id);
+        } else {
+          setWpChannelsFatal(true);
+        }
+        const goalRadio = def.fields.find(
+          (f) => f.type === 'radio' && /هدفتان/.test(f.label) && (f.choices?.length ?? 0) > 0,
+        );
+        setGoalField(
+          goalRadio
+            ? { id: goalRadio.id, label: goalRadio.label, choices: goalRadio.choices! }
+            : null,
+        );
+        const titleField = def.fields.find(
+          (f) =>
+            /عنوان\s*کمپین/.test(f.label) &&
+            ['text', 'textarea', 'phone', 'email'].includes(f.type),
+        );
+        setTitleFieldId(titleField ? titleField.id : null);
+      })
+      .catch(() => {
+        if (!cancelled) setWpChannelsFatal(true);
+      })
+      .finally(() => {
+        if (!cancelled) setWpChannelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   // Fetch customers when entering step 2 in customer_list mode
@@ -179,19 +280,17 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
 
   const patch = (partial: Partial<FormData>) => setForm((f) => ({ ...f, ...partial }));
 
+  // SMS-only lock for location mode; customer_list allows extra form-2003 channels.
   useEffect(() => {
-    if (
-      (form.mode === 'location' || form.mode === 'customer_list') &&
-      (form.channels.length !== 1 || form.channels[0] !== 'sms')
-    ) {
+    if (form.mode === 'location' && (form.channels.length !== 1 || form.channels[0] !== 'sms')) {
       patch({ channels: ['sms'] });
     }
   }, [form.mode, form.channels]);
 
   if (!isOpen) return null;
 
-  const toggleChannel = (ch: CampaignChannel) => {
-    if (form.mode === 'location' || form.mode === 'customer_list') {
+  const toggleChannel = (ch: string) => {
+    if (form.mode === 'location') {
       patch({ channels: ['sms'] });
       return;
     }
@@ -211,9 +310,33 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     });
   };
 
+  const hasSms = form.channels.includes('sms');
+
+  const stack: StackItem[] = (() => {
+    const items: StackItem[] = [{ kind: 'base' }];
+    if (hasSms) items.push({ kind: 'audience' }, { kind: 'template' }, { kind: 'summary' });
+    wpChannelChoices.forEach((o) => {
+      if (o.value !== 'sms' && form.channels.includes(o.value)) {
+        items.push({ kind: 'wpform', channelValue: o.value, channelLabel: o.label });
+      }
+    });
+    if (form.channels.some((c) => c !== 'sms')) items.push({ kind: 'results' });
+    return items;
+  })();
+
+  const totalSteps = stack.length;
+  const current = stack[Math.min(step, stack.length) - 1];
+  const currentStepName =
+    current.kind === 'wpform' ? `فرم کمپین ${current.channelLabel}` : STACK_LABELS[current.kind];
+
   const canGoNext = (): boolean => {
-    if (step === 1) return form.name.trim().length > 0 && form.channels.length > 0;
-    if (step === 2) {
+    if (current.kind === 'base')
+      return (
+        form.name.trim().length > 0 &&
+        form.channels.length > 0 &&
+        (!goalField || form.goal.length > 0)
+      );
+    if (current.kind === 'audience') {
       if (form.mode === 'customer_list') {
         const rowFromValid = Number.isInteger(form.recipientRowFrom) && form.recipientRowFrom >= 0;
         const rowCountValid = Number.isInteger(form.recipientRowCount) && form.recipientRowCount >= 1;
@@ -241,7 +364,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         ageRangeValid
       );
     }
-    if (step === 3) {
+    if (current.kind === 'template') {
       if (form.templateId === null) return false;
       const selectedTemplate = templates.find((t) => t.id === form.templateId);
       const needsTarget =
@@ -252,7 +375,9 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     return true;
   };
 
-  const handleSubmit = async () => {
+  /** Submits the SMS-side record (DB) when پیامک is among the selections. Returns true on success. */
+  const handleSubmit = async (): Promise<boolean> => {
+    if (!form.channels.includes('sms')) return true;
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -286,10 +411,10 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         device: form.mode === 'location' ? form.device : undefined,
       });
       await sendCampaign(campaign.id);
-      onClose();
-      onSuccess();
+      return true;
     } catch {
       setSubmitError('خطا در ارسال کمپین. لطفاً دوباره تلاش کنید.');
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -299,6 +424,41 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
 
   const renderStep1 = () => (
     <div className="space-y-5">
+      {/* Campaign goal (choices come from the WPForm's goal radio) */}
+      {goalField && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {goalField.label || 'هدف کمپین'} <span className="text-red-500">*</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {goalField.choices.map((choice) => {
+              const selected = form.goal === choice.value;
+              return (
+                <button
+                  key={choice.value}
+                  type="button"
+                  onClick={() => patch({ goal: choice.value })}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-colors ${
+                    selected
+                      ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded flex items-center justify-center border ${
+                      selected ? 'bg-blue-600 border-blue-600' : 'border-gray-400'
+                    }`}
+                  >
+                    {selected && <Check className="w-3 h-3 text-white" />}
+                  </span>
+                  {choice.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Campaign name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -356,14 +516,22 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         )}
         {form.mode === 'customer_list' && (
           <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
-            در حال حاضر برای لیست مخاطبان، فقط ارسال پیامک فعال است.
+            کانال‌های غیر از پیامک دارای فرم اختصاصی هستند و در مراحل بعد تکمیل می‌شوند.
           </p>
         )}
+        {wpChannelsLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : wpChannelsFatal ? (
+          <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-xl">
+            دریافت کانال‌ها از فرم کمپین ناموفق بود؛ فقط ارسال پیامک در دسترس است.
+          </p>
+        ) : null}
         <div className="grid grid-cols-2 gap-2">
-          {CHANNELS.map((ch) => {
+          {CHANNELS.concat(wpChannelChoices).map((ch) => {
             const selected = form.channels.includes(ch.value);
-            const isLockedByMode =
-              (form.mode === 'location' || form.mode === 'customer_list') && ch.value !== 'sms';
+            const isLockedByMode = form.mode === 'location' && ch.value !== 'sms';
             return (
               <button
                 key={ch.value}
@@ -800,6 +968,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const renderStep4 = () => {
     const selectedTemplate = templates.find((t) => t.id === form.templateId);
     const modeLabel = form.mode === 'customer_list' ? 'لیست مخاطبان' : 'مبتنی بر مکان';
+    const goalLabel = goalField?.choices.find((c) => c.value === form.goal)?.label ?? form.goal;
     const channelLabels = form.channels
       .map((ch) => CHANNELS.find((c) => c.value === ch)?.label ?? ch)
       .join('، ');
@@ -831,6 +1000,12 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             <dt className="text-gray-500">کانال‌ها</dt>
             <dd className="font-medium text-gray-900 dark:text-gray-100">{channelLabels}</dd>
           </div>
+          {goalField && form.goal && (
+            <div className="flex justify-between text-sm">
+              <dt className="text-gray-500">هدف</dt>
+              <dd className="font-medium text-gray-900 dark:text-gray-100">{goalLabel}</dd>
+            </div>
+          )}
           {form.mode === 'customer_list' && (
             <>
               <div className="flex justify-between text-sm">
@@ -910,7 +1085,47 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     );
   };
 
-  const stepTitles = ['اطلاعات پایه', 'مخاطبان', 'پیام و لینک', 'تأیید نهایی'];
+  const renderStepResults = () => {
+    const wpSelected = [...CHANNELS, ...wpChannelChoices].filter(
+      (o) => o.value !== 'sms' && form.channels.includes(o.value),
+    );
+    return (
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">نتیجه ارسال</h3>
+        {hasSms && (
+          <div className="flex items-center justify-between text-sm rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
+            <span className="font-medium text-gray-900 dark:text-gray-100">پیامک (SMS)</span>
+            <span className="text-emerald-600 font-medium">ثبت شد</span>
+          </div>
+        )}
+        {wpSelected.map((o) => {
+          const r = wpResults[o.value];
+          return (
+            <div
+              key={o.value}
+              className="flex items-center justify-between text-sm rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3"
+            >
+              <span className="font-medium text-gray-900 dark:text-gray-100">{o.label}</span>
+              {r?.ok ? (
+                <span className="text-emerald-600 font-medium">
+                  {r.confirmation ? r.confirmation : 'ارسال شد'}
+                </span>
+              ) : r ? (
+                <span className="text-red-500">ناموفق: {r.error ?? 'خطا'}</span>
+              ) : (
+                <span className="text-gray-400">ارسال نشده</span>
+              )}
+            </div>
+          );
+        })}
+        {submitError && (
+          <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-xl">
+            {submitError}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const renderChoiceView = () => {
     const options = [
@@ -985,7 +1200,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             </h2>
             {view === 'form' && (
               <p className="text-xs text-gray-400 mt-0.5">
-                مرحله {step.toLocaleString('fa-IR')} از ۴ — {stepTitles[step - 1]}
+                مرحله {step.toLocaleString('fa-IR')} از {totalSteps.toLocaleString('fa-IR')} — {currentStepName}
               </p>
             )}
           </div>
@@ -1005,26 +1220,50 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             <>
               {/* Step indicator */}
               <div className="flex px-0 pt-0 pb-5 gap-1.5">
-                {[1, 2, 3, 4].map((s) => (
+                {stack.map((_, s) => (
                   <div
                     key={s}
                     className={`h-1 flex-1 rounded-full transition-colors ${
-                      s <= step ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+                      s < step ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
                     }`}
                   />
                 ))}
               </div>
-              {step === 1 && renderStep1()}
-              {step === 2 && form.mode === 'customer_list' && renderStep2CustomerList()}
-              {step === 2 && form.mode === 'location' && renderStep2Location()}
-              {step === 3 && renderStep3()}
-              {step === 4 && renderStep4()}
+              {current.kind === 'base' && renderStep1()}
+              {current.kind === 'audience' &&
+                (form.mode === 'customer_list' ? renderStep2CustomerList() : renderStep2Location())}
+              {current.kind === 'template' && renderStep3()}
+              {current.kind === 'summary' && renderStep4()}
+              {current.kind === 'wpform' && current.channelValue && (
+                <CampaignSetupForm
+                  key={current.channelValue}
+                  lockedRadios={[
+                    ...(wpChannelFieldId != null && current.channelValue
+                      ? [{ fieldId: wpChannelFieldId, value: current.channelValue }]
+                      : []),
+                    ...(goalField != null && form.goal
+                      ? [{ fieldId: goalField.id, value: form.goal }]
+                      : []),
+                  ]}
+                  presetFields={[
+                    ...(titleFieldId != null && form.name.trim()
+                      ? [{ fieldId: titleFieldId, value: form.name.trim() }]
+                      : []),
+                  ]}
+                  onBack={() => setStep((s) => Math.max(1, s - 1))}
+                  onSubmitResult={(res) =>
+                    setWpResults((prev) => ({ ...prev, [current.channelValue!]: res }))
+                  }
+                  onSuccess={() => setStep((s) => Math.min(stack.length, s + 1))}
+                />
+              )}
+              {current.kind === 'results' && renderStepResults()}
             </>
           )}
         </div>
 
         {/* Footer */}
-        {view === 'form' && (
+        {view === 'form' && current.kind !== 'wpform' && (
         <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
           {step > 1 ? (
             <button
@@ -1047,7 +1286,50 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
 
           <div className="flex-1" />
 
-          {step < 4 ? (
+          {current.kind === 'summary' ? (
+            step < totalSteps ? (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={async () => {
+                  const ok = await handleSubmit();
+                  if (ok) setStep((s) => s + 1);
+                }}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium rounded-xl transition-colors"
+              >
+                {isSubmitting ? 'در حال ارسال...' : 'ثبت و ادامه'}
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => {
+                  handleSubmit().then((ok) => {
+                    if (ok) {
+                      onSuccess();
+                      onClose();
+                    }
+                  });
+                }}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium rounded-xl transition-colors"
+              >
+                {isSubmitting ? 'در حال ارسال...' : 'ارسال کمپین'}
+              </button>
+            )
+          ) : current.kind === 'results' ? (
+            <button
+              type="button"
+              onClick={() => {
+                onSuccess();
+                onClose();
+              }}
+              className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
+            >
+              <Check className="w-4 h-4" />
+              پایان
+            </button>
+          ) : (
             <button
               type="button"
               disabled={!canGoNext()}
@@ -1056,15 +1338,6 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             >
               بعدی
               <ChevronLeft className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={handleSubmit}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium rounded-xl transition-colors"
-            >
-              {isSubmitting ? 'در حال ارسال...' : 'ارسال کمپین'}
             </button>
           )}
         </div>

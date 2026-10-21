@@ -1,6 +1,6 @@
 export type CampaignStatus = 'draft' | 'pending' | 'sent' | 'failed' | 'cancelled';
 export type CampaignMode = 'customer_list' | 'location';
-export type CampaignChannel = 'sms' | 'bale' | 'telegram' | 'whatsapp';
+export type CampaignChannel = string;
 export type CampaignLinkType = 'service' | 'category' | 'coupon';
 
 export interface Campaign {

@@ -15,6 +15,12 @@ import {
 interface Props {
   onSuccess: () => void;
   onBack: () => void;
+  /** Radio fields to preset (and lock) on load, e.g. the campaign-goal and campaign-type choices inherited from the wizard. */
+  lockedRadios?: { fieldId: number; value: string }[];
+  /** Text fields to prefill on load (e.g. the campaign title copied from the wizard's name). */
+  presetFields?: { fieldId: number; value: string }[];
+  /** Reports each submit attempt outcome (success or failure) to the host. */
+  onSubmitResult?: (result: { ok: boolean; confirmation?: string; error?: string }) => void;
 }
 
 interface FileItem {
@@ -63,7 +69,13 @@ function choiceIcon(label: string, index: number): { Icon: LucideIcon; tint: str
   return { Icon, tint: CHOICE_COLORS[index % CHOICE_COLORS.length] };
 }
 
-export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
+export default function CampaignSetupForm({
+  onSuccess,
+  onBack,
+  lockedRadios,
+  presetFields,
+  onSubmitResult,
+}: Props) {
   const [definition, setDefinition] = useState<CampaignFormDefinition | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -78,6 +90,20 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
     setLoadError(null);
     try {
       const def = await getCampaignFormDefinition();
+      if ((lockedRadios && lockedRadios.length > 0) || (presetFields && presetFields.length > 0)) {
+        setValues((prev) => {
+          const next = { ...prev };
+          (lockedRadios ?? []).forEach(({ fieldId, value }) => {
+            const f = def.fields.find((x) => x.id === fieldId);
+            if (f && !next[f.name]) next[f.name] = value;
+          });
+          (presetFields ?? []).forEach(({ fieldId, value }) => {
+            const f = def.fields.find((x) => x.id === fieldId);
+            if (f && String(next[f.name] ?? '').trim() === '') next[f.name] = value;
+          });
+          return next;
+        });
+      }
       setDefinition(def);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'خطا در بارگذاری فرم');
@@ -86,10 +112,12 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
     }
   }
 
+  const lockKey = (lockedRadios ?? []).map((l) => `${l.fieldId}:${l.value}`).join('|');
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [lockKey]);
 
   const fieldById = useMemo(() => {
     const map: Record<number, CampaignFormField> = {};
@@ -211,13 +239,16 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
       });
 
       const res = await submitCampaignForm(payload);
+      onSubmitResult?.(res);
       if (!res.ok) {
         setSubmitError(res.error ?? 'ارسال کمپین ناموفق بود');
         return;
       }
       onSuccess();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : 'خطا در ارسال فرم');
+      const error = e instanceof Error ? e.message : 'خطا در ارسال فرم';
+      onSubmitResult?.({ ok: false, error });
+      setSubmitError(error);
     } finally {
       setSubmitting(false);
     }
@@ -333,6 +364,7 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
         const value = typeof values[field.name] === 'string' ? (values[field.name] as string) : '';
         const choices = field.choices ?? [];
         const wide = choices.length <= 1;
+        const locked = (lockedRadios ?? []).some((l) => l.fieldId === field.id);
         return (
           <div key={field.id}>
             <label className={labelClass}>
@@ -351,7 +383,7 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
                 return (
                   <label
                     key={choice.value}
-                    className={`group relative flex items-center gap-3 rounded-2xl border p-3.5 cursor-pointer select-none transition-all ${
+                    className={`group relative flex items-center gap-3 rounded-2xl border p-3.5 ${locked ? 'pointer-events-none cursor-default' : 'cursor-pointer select-none'} transition-all ${
                       selected
                         ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-500/10 ring-1 ring-blue-500 shadow-sm'
                         : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 hover:border-blue-300 dark:hover:border-blue-600/60 hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -362,6 +394,7 @@ export default function CampaignSetupForm({ onSuccess, onBack }: Props) {
                       name={`wpforms-field-${field.id}`}
                       value={choice.value}
                       checked={selected}
+                      disabled={locked}
                       onChange={() => setValue(field.name, choice.value)}
                       className="sr-only"
                     />
