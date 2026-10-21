@@ -406,15 +406,23 @@ export interface UploadResult {
   data: Record<string, unknown>;
 }
 
-function randomHex(bytes: number): string {
+function generateDzuuid(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
   let out = '';
-  for (let i = 0; i < bytes; i++) {
+  for (let i = 0; i < 16; i++) {
     out += Math.floor(Math.random() * 256)
       .toString(16)
       .padStart(2, '0');
   }
-  return out;
+  return `${out.slice(0, 8)}-${out.slice(8, 12)}-4${out.slice(13, 16)}-8${out.slice(17, 20)}-${out.slice(20, 32)}`;
 }
+
+// Mirrors the WPForms chunked upload protocol captured from the real page JS
+// (Dropzone). Init must carry the dz* chunk params or the handler answers 403;
+// dzchunksize in chunk/finalize requests is the negotiated chunk size itself.
+const DZ_DEFAULT_CHUNK_SIZE = 524288;
 
 export async function uploadFieldFile(
   fieldId: number,
@@ -422,12 +430,18 @@ export async function uploadFieldFile(
   file: File,
   formId: number = FORM_ID,
 ): Promise<UploadResult> {
+  const dzuuid = generateDzuuid();
   const initBody = new URLSearchParams({
     action: 'wpforms_upload_chunk_init',
     form_id: String(formId),
     field_id: String(fieldId),
     name: file.name,
     slow: 'false',
+    dzuuid,
+    dzchunkindex: '0',
+    dztotalfilesize: String(file.size),
+    dzchunksize: String(DZ_DEFAULT_CHUNK_SIZE),
+    dzchunkbyteoffset: '0',
   });
   const initRes = await fetch(ajaxUrl(), {
     method: 'POST',
@@ -445,18 +459,13 @@ export async function uploadFieldFile(
     throw new Error(extractSubmitError(initPayload) ?? 'Upload failed');
   }
 
-  const chunkSizeChars = Number(initPayload.data?.dzchunksize ?? 2 * 1024 * 1024);
-  const dzuuid = randomHex(16);
-  const totalChunks = Math.ceil(file.size / chunkSizeChars);
-
-  // Scalar keys from init data get merged into each chunk request (mirrors dropzone options merge)
-  const initExtra: Record<string, unknown> = { ...(initPayload.data ?? {}) };
-  delete initExtra.dzchunksize;
+  const chunkSize = Number(initPayload.data?.dzchunksize) || DZ_DEFAULT_CHUNK_SIZE;
+  const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
 
   let lastData: Record<string, unknown> = {};
   for (let i = 0; i < totalChunks; i++) {
-    const start = i * chunkSizeChars;
-    const end = Math.min(start + chunkSizeChars, file.size);
+    const start = i * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
     const blob = file.slice(start, end);
     const fd = new FormData();
     fd.append('action', 'wpforms_upload_chunk');
@@ -464,17 +473,10 @@ export async function uploadFieldFile(
     fd.append('field_id', String(fieldId));
     fd.append('dzuuid', dzuuid);
     fd.append('dzchunkindex', String(i));
-    fd.append('dztotalchunkcount', String(totalChunks));
     fd.append('dztotalfilesize', String(file.size));
-    fd.append('dzchunksize', String(end - start));
+    fd.append('dzchunksize', String(chunkSize));
+    fd.append('dztotalchunkcount', String(totalChunks));
     fd.append('dzchunkbyteoffset', String(start));
-    fd.append('dzfilename', file.name);
-    fd.append('dzfileindex', '0');
-    for (const [k, v] of Object.entries(initExtra)) {
-      if (v === null || v === undefined) continue;
-      if (typeof v === 'object') continue;
-      fd.append(k, String(v));
-    }
     fd.append(inputName, blob, file.name);
     const chunkRes = await fetch(ajaxUrl(), { method: 'POST', body: fd, headers: BROWSER_HEADERS });
     const chunkText = await chunkRes.text();
@@ -496,17 +498,12 @@ export async function uploadFieldFile(
   finishBody.set('form_id', String(formId));
   finishBody.set('field_id', String(fieldId));
   finishBody.set('name', file.name);
-  finishBody.set('file', file.name);
   finishBody.set('dzuuid', dzuuid);
-  finishBody.set('dztotalchunkcount', String(totalChunks));
+  finishBody.set('dzchunkindex', '0');
   finishBody.set('dztotalfilesize', String(file.size));
-  finishBody.set('dzfilename', file.name);
-  finishBody.set('dzfileindex', '0');
-  for (const [k, v] of Object.entries(initExtra)) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === 'object') continue;
-    finishBody.set(k, String(v));
-  }
+  finishBody.set('dzchunksize', String(chunkSize));
+  finishBody.set('dztotalchunkcount', String(totalChunks));
+  finishBody.set('dzchunkbyteoffset', '0');
   const finishRes = await fetch(ajaxUrl(), {
     method: 'POST',
     body: finishBody,
