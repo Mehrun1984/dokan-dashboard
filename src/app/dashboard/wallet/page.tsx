@@ -6,6 +6,11 @@ import { getWalletErrorMessage, getWalletOverview, type WalletOverview } from '@
 import WalletTopUpCard from '@/components/wallet/WalletTopUpCard';
 import { Wallet, ArrowDownLeft, Clock } from 'lucide-react';
 
+function formatToman(value: unknown): string {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue.toLocaleString('fa-IR') : '۰';
+}
+
 export default function WalletPage() {
   const [walletData, setWalletData] = useState<any>(null);
   const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null);
@@ -61,11 +66,10 @@ export default function WalletPage() {
     }
   };
 
-  const balance = walletOverview
-    ? Number(walletOverview.account.balance)
-    : walletData
-      ? Number(walletData.balance)
-      : null;
+  const balanceValue = walletOverview
+    ? walletOverview.account.balance
+    : walletData?.balance;
+  const hasWalletData = Boolean(walletOverview) || Boolean(walletData);
 
   return (
     <div className="space-y-6 pb-24">
@@ -76,9 +80,11 @@ export default function WalletPage() {
         <div>
           <p className="text-blue-100 text-sm mb-1 opacity-90">موجودی کیف پول</p>
           <h2 className="text-3xl font-bold">
-            {balance !== null && Number.isFinite(balance)
-              ? balance.toLocaleString('fa-IR')
-              : '...'}{' '}
+            {isWalletOverviewLoading && !hasWalletData
+              ? '...'
+              : hasWalletData
+                ? formatToman(balanceValue)
+                : '...'}{' '}
             <span className="text-base font-normal">تومان</span>
           </h2>
         </div>
@@ -132,7 +138,7 @@ export default function WalletPage() {
                   <div className="flex items-center gap-3">
                     <Clock size={18} className="text-gray-400 dark:text-gray-500" />
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{Number(req.amount).toLocaleString('fa-IR')} تومان</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{formatToman(req.amount)} تومان</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{req.date}</p>
                     </div>
                   </div>
