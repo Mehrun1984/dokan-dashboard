@@ -1,26 +1,47 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { dokanService } from '@/services/dokan.service';
+import { getWalletErrorMessage, getWalletOverview, type WalletOverview } from '@/services/wallet.service';
+import WalletTopUpCard from '@/components/wallet/WalletTopUpCard';
 import { Wallet, ArrowDownLeft, Clock } from 'lucide-react';
 
 export default function WalletPage() {
   const [walletData, setWalletData] = useState<any>(null);
+  const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null);
+  const [isWalletOverviewLoading, setIsWalletOverviewLoading] = useState(true);
+  const [walletOverviewError, setWalletOverviewError] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [isRequesting, setIsRequesting] = useState(false);
 
-  useEffect(() => {
-    fetchWallet();
-  }, []);
-
-  const fetchWallet = async () => {
+  const fetchWithdrawals = useCallback(async () => {
     try {
       const data = await dokanService.getWithdrawals();
       setWalletData(data);
     } catch (error) {
       console.error('Failed to load wallet', error);
     }
-  };
+  }, []);
+
+  const fetchWalletOverview = useCallback(async () => {
+    setIsWalletOverviewLoading(true);
+    setWalletOverviewError(null);
+
+    try {
+      const data = await getWalletOverview();
+      setWalletOverview(data);
+    } catch (error) {
+      console.error('Failed to load wallet overview', error);
+      setWalletOverviewError(getWalletErrorMessage(error));
+    } finally {
+      setIsWalletOverviewLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchWithdrawals();
+    void fetchWalletOverview();
+  }, [fetchWalletOverview, fetchWithdrawals]);
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,13 +52,20 @@ export default function WalletPage() {
       await dokanService.requestWithdrawal(Number(amount));
       alert('درخواست برداشت با موفقیت ثبت شد.');
       setAmount('');
-      fetchWallet(); // Refresh balance and history
+      await fetchWithdrawals();
+      void fetchWalletOverview();
     } catch (error: any) {
       alert(error.response?.data?.message || 'خطا در ثبت درخواست.');
     } finally {
       setIsRequesting(false);
     }
   };
+
+  const balance = walletOverview
+    ? Number(walletOverview.account.balance)
+    : walletData
+      ? Number(walletData.balance)
+      : null;
 
   return (
     <div className="space-y-6 pb-24">
@@ -46,15 +74,25 @@ export default function WalletPage() {
       {/* Balance Card */}
       <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-6 text-white shadow-lg flex items-center justify-between">
         <div>
-          <p className="text-blue-100 text-sm mb-1 opacity-90">موجودی قابل برداشت</p>
+          <p className="text-blue-100 text-sm mb-1 opacity-90">موجودی کیف پول</p>
           <h2 className="text-3xl font-bold">
-            {walletData ? Number(walletData.balance).toLocaleString('fa-IR') : '...'} <span className="text-base font-normal">تومان</span>
+            {balance !== null && Number.isFinite(balance)
+              ? balance.toLocaleString('fa-IR')
+              : '...'}{' '}
+            <span className="text-base font-normal">تومان</span>
           </h2>
         </div>
         <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
           <Wallet size={28} className="text-white" />
         </div>
       </div>
+
+      <WalletTopUpCard
+        overview={walletOverview}
+        isLoading={isWalletOverviewLoading}
+        loadError={walletOverviewError}
+        onRefresh={fetchWalletOverview}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Request Form */}
