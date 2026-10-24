@@ -19,7 +19,7 @@ import {
 } from '@/services/wallet.service';
 import type { WalletOverview } from '@/services/wallet.service';
 
-const MIN_TOPUP = 2_000_000;
+const MIN_TOPUP = 1_000;
 const STEP = 5_000_000;
 const PRESETS = [5_000_000, 10_000_000, 30_000_000, 50_000_000];
 const PENDING_STORAGE_KEY = 'vendor_wallet_pending_topup';
