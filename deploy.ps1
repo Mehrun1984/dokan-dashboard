@@ -24,8 +24,9 @@ if (-not $SkipPushCheck) {
 $RemoteScript = @"
 set -e
 cd $Dir
-echo '--- pulling ---'
-git pull origin $Branch
+echo '--- syncing to origin/$Branch ---'
+git fetch origin $Branch
+git reset --hard origin/$Branch
 echo '--- installing ---'
 npm ci
 echo '--- building ---'
