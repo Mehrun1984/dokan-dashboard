@@ -8,10 +8,7 @@ import { bookingService, BookingOperator, BookingVendorStaffUser, AvailableSlot 
 import { dokanService } from '@/services/dokan.service';
 import { DokanProduct } from '@/types/dokan';
 import { X, AlertCircle, ChevronDown, Check } from 'lucide-react';
-import DatePicker from 'react-multi-date-picker';
-import DateObject from 'react-date-object';
-import persian from 'react-date-object/calendars/persian';
-import persian_fa from 'react-date-object/locales/persian_fa';
+import JalaliDatePicker, { toGregorian } from '@/components/advertising/JalaliDatePicker';
 
 const bookingSchema = z.object({
   customer_name: z.string().min(2, 'نام مشتری الزامی است'),
@@ -236,7 +233,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
   const [slotsNotice, setSlotsNotice] = useState<string | null>(null);
   const [isOperatorsLoading, setIsOperatorsLoading] = useState(false);
   const [isSlotsLoading, setIsSlotsLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<DateObject | null>(null);
+  const [selectedJalaliDate, setSelectedJalaliDate] = useState('');
   const [isServiceMenuOpen, setIsServiceMenuOpen] = useState(false);
   const serviceDropdownRef = useRef<HTMLDivElement | null>(null);
   const initialServiceSyncRef = useRef(false);
@@ -384,9 +381,9 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     return `${new Intl.NumberFormat('fa-IR').format(amount)} تومان`;
   };
 
-  const handleDateChange = (value: DateObject | null) => {
-    if (!value) {
-      setSelectedDate(null);
+  const handleDateChange = (jalaliDate: string) => {
+    if (!jalaliDate) {
+      setSelectedJalaliDate('');
       setValue('date', '', { shouldValidate: true, shouldDirty: true });
       setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
       setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
@@ -397,13 +394,17 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
       return;
     }
 
-    const jsDate = value.toDate();
-    const year = jsDate.getFullYear();
-    const month = String(jsDate.getMonth() + 1).padStart(2, '0');
-    const day = String(jsDate.getDate()).padStart(2, '0');
+    const match = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(jalaliDate);
+    if (!match) {
+      return;
+    }
 
-    setSelectedDate(value);
-    setValue('date', `${year}-${month}-${day}`, { shouldValidate: true, shouldDirty: true });
+    const gregorian = toGregorian(Number(match[1]), Number(match[2]), Number(match[3]));
+    const month = String(gregorian.gm).padStart(2, '0');
+    const day = String(gregorian.gd).padStart(2, '0');
+
+    setSelectedJalaliDate(jalaliDate);
+    setValue('date', `${gregorian.gy}-${month}-${day}`, { shouldValidate: true, shouldDirty: true });
     setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
     setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
     setSlots([]);
@@ -412,7 +413,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
 
   const handleClose = () => {
     reset();
-    setSelectedDate(null);
+    setSelectedJalaliDate('');
     setIsServiceMenuOpen(false);
     setAllOperators([]);
     setDateOperators([]);
@@ -432,7 +433,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     setValue('date', '', { shouldValidate: true, shouldDirty: true });
     setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
     setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
-    setSelectedDate(null);
+    setSelectedJalaliDate('');
     setAllOperators([]);
     setDateOperators([]);
     setSlots([]);
@@ -818,17 +819,11 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">تاریخ</label>
               <input type="hidden" {...register('date')} />
-              <DatePicker
-                value={selectedDate}
-                onChange={(value) => handleDateChange(value as DateObject | null)}
-                calendar={persian}
-                locale={persian_fa}
-                format="YYYY/MM/DD"
-                editable={false}
-                calendarPosition="bottom-right"
-                containerClassName="w-full"
+              <JalaliDatePicker
+                value={selectedJalaliDate}
+                onChange={handleDateChange}
+                placeholder="۱۴۰۴/۰۱/۰۱"
                 inputClass="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="yyyy/mm/dd"
                 disabled={selectedServiceId <= 0}
               />
               {selectedServiceId <= 0 && (

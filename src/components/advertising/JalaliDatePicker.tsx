@@ -123,9 +123,10 @@ interface Props {
   onChange: (jalaliDateString: string) => void;
   placeholder?: string;
   inputClass?: string;
+  disabled?: boolean;
 }
 
-export default function JalaliDatePicker({ value, onChange, placeholder, inputClass = '' }: Props) {
+export default function JalaliDatePicker({ value, onChange, placeholder, inputClass = '', disabled = false }: Props) {
   const [open, setOpen] = useState(false);
   const today = useMemo(() => {
     const now = new Date();
@@ -172,7 +173,8 @@ export default function JalaliDatePicker({ value, onChange, placeholder, inputCl
       <button
         type="button"
         onClick={openPanel}
-        className={`${inputClass} flex items-center justify-between gap-2 text-left`}
+        disabled={disabled}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left disabled:opacity-70 disabled:cursor-not-allowed`}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
