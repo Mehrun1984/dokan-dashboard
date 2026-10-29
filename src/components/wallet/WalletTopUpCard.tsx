@@ -126,6 +126,7 @@ export default function WalletTopUpCard({
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const pendingInitRef = useRef(false);
+  const returnHandledRef = useRef(false);
 
   const minAmount = Math.max(MIN_TOPUP, Math.ceil(Number(overview?.min_topup) || 0));
   const serverMax = Number(overview?.max_amount);
@@ -238,15 +239,97 @@ export default function WalletTopUpCard({
   }, [onRefresh]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const state = params.get('topup');
+
+    if (!state) {
+      return;
+    }
+
+    returnHandledRef.current = true;
+
+    const orderId = Number(params.get('order'));
+    ['topup', 'order', 'reason'].forEach((key) => params.delete(key));
+
+    const query = params.toString();
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+    );
+
+    if (state === 'failed') {
+      clearStoredPendingTopUp();
+      setPending(null);
+      setApiError('پرداخت انجام نشد یا لغو شد. در صورت کسر مبلغ، با پشتیبانی تماس بگیرید.');
+      return;
+    }
+
+    if (!Number.isFinite(orderId) || orderId <= 0) {
+      void onRefresh();
+      return;
+    }
+
+    void (async () => {
+      try {
+        const status = await getWalletTopUpStatus(orderId);
+
+        if (!mountedRef.current) {
+          return;
+        }
+
+        if (status.credited) {
+          clearStoredPendingTopUp();
+          setPending(null);
+          setSuccessMessage(
+            `مبلغ ${formatToman(Number(status.amount))} تومان با موفقیت به کیف پول شما اضافه شد.`
+          );
+          await onRefresh();
+          return;
+        }
+
+        const nextPending: PendingTopUp = {
+          orderId,
+          amount: Number(status.amount),
+          paymentUrl: status.payment_url || undefined,
+          createdAt: Date.now(),
+        };
+
+        storePendingTopUp(nextPending);
+        setPending(nextPending);
+
+        if (state === 'success') {
+          setApiError('پرداخت انجام شده است و کیف پول در حال شارژ است. لطفاً دوباره وضعیت را بررسی کنید.');
+        }
+
+        void checkPendingStatus(nextPending);
+      } catch (error) {
+        if (!mountedRef.current) {
+          return;
+        }
+
+        setApiError(getWalletErrorMessage(error));
+      }
+    })();
+  }, [checkPendingStatus, onRefresh]);
+
+  useEffect(() => {
     mountedRef.current = true;
 
     if (!pendingInitRef.current) {
       pendingInitRef.current = true;
-      const storedPending = readPendingTopUp();
 
-      if (storedPending) {
-        setPending(storedPending);
-        void checkPendingStatus(storedPending);
+      if (!returnHandledRef.current) {
+        const storedPending = readPendingTopUp();
+
+        if (storedPending) {
+          setPending(storedPending);
+          void checkPendingStatus(storedPending);
+        }
       }
     }
 
@@ -321,7 +404,8 @@ export default function WalletTopUpCard({
     setIsSubmitting(true);
 
     try {
-      const order = await createWalletTopUp(numericAmount);
+      const returnUrl = `${window.location.origin}/dashboard/wallet`;
+      const order = await createWalletTopUp(numericAmount, returnUrl);
 
       if (!order.payment_url) {
         setApiError('لینک پرداخت دریافت نشد. لطفاً دوباره تلاش کنید.');

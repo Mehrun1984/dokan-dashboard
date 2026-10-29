@@ -47,9 +47,10 @@ export async function getWalletOverview(): Promise<WalletOverview> {
   return response.data.data;
 }
 
-export async function createWalletTopUp(amount: number): Promise<WalletTopUpOrder> {
+export async function createWalletTopUp(amount: number, returnUrl?: string): Promise<WalletTopUpOrder> {
   const response = await apiClient.post<{ data: WalletTopUpOrder }>(`${NAMESPACE}/topup`, {
     amount,
+    ...(returnUrl ? { return_url: returnUrl } : {}),
   });
   return response.data.data;
 }
@@ -74,6 +75,9 @@ export function getWalletErrorMessage(error: unknown): string {
     amount_too_small: 'مبلغ وارد شده کمتر از حداقل مجاز است.',
     amount_too_large: 'مبلغ وارد شده بیشتر از سقف مجاز است.',
     woocommerce_inactive: 'درگاه پرداخت آنلاین در حال حاضر فعال نیست.',
+    gateway_not_configured: 'درگاه پرداخت آنلاین پیکربندی نشده است.',
+    gateway_error: 'خطا در اتصال به درگاه پرداخت. لطفاً دوباره تلاش کنید.',
+    gateway_unreachable: 'ارتباط با درگاه پرداخت برقرار نشد. لطفاً دوباره تلاش کنید.',
     invalid_user: 'خطا در شناسایی حساب کاربری. لطفاً دوباره وارد شوید.',
     order_failed: 'خطا در ایجاد سفارش پرداخت. لطفاً دوباره تلاش کنید.',
     wallet_error: 'خطا در انجام عملیات کیف پول. لطفاً دوباره تلاش کنید.',
