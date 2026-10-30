@@ -48,6 +48,8 @@ export interface MessageTemplate {
   title: string;
   body: string;
   created_at: string;
+  product_category_ids?: number[];
+  product_category_names?: string;
 }
 
 export interface BulkCoupon {

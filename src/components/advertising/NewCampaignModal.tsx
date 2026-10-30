@@ -10,7 +10,6 @@ import {
   getCustomers,
   getTemplates,
   getCoupons,
-  getVendorStoreCategory,
 } from '@/services/bulkMessaging.service';
 import {
   getCampaignFormDefinition,
@@ -168,6 +167,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
   const [coupons, setCoupons] = useState<BulkCoupon[]>([]);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [isLoadingResources, setIsLoadingResources] = useState(false);
+  const [resourcesLoaded, setResourcesLoaded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<MessageTemplate | null>(null);
@@ -187,6 +187,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
       setWpResults({});
       setSubmitError(null);
       setPreviewTemplate(null);
+      setResourcesLoaded(false);
     }
   }, [isOpen]);
 
@@ -242,31 +243,38 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
     }
   }, [isOpen, step, form.mode, customers.length]);
 
-  // Fetch templates + products/categories together when entering step 3
+  // Fetch templates + products/categories together when entering step 3.
+  // Templates are mapped to WooCommerce product categories on the server; the
+  // vendor's own service categories come from the categories of their products.
   useEffect(() => {
-    if (isOpen && step === 3 && templates.length === 0) {
+    if (isOpen && step === 3 && !resourcesLoaded) {
       setIsLoadingResources(true);
       let cancelled = false;
 
-      getVendorStoreCategory()
-        .then((storeCategory) => storeCategory.store_category_id)
-        .catch(() => 0)
-        .then((storeCategoryId) => {
+      Promise.all([getTemplates(), dokanService.getProducts(), getCoupons()])
+        .then(([tmpl, prods, coups]) => {
           if (cancelled) return;
-          return Promise.all([
-            getTemplates(storeCategoryId || undefined),
-            dokanService.getProducts(),
-            getCoupons(),
-          ])
-            .then(([tmpl, prods, coups]) => {
-              if (cancelled) return;
-              setTemplates(tmpl);
-              setProducts(prods);
-              setCoupons(coups);
-              const catMap = new Map<number, Category>();
-              prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
-              setCategories(Array.from(catMap.values()));
-            });
+
+          const vendorCategoryIds = new Set<number>();
+          prods.forEach((p) => p.categories?.forEach((c) => vendorCategoryIds.add(c.id)));
+
+          // Keep templates that explicitly target one of the vendor's service
+          // categories, plus templates not assigned to any category (global).
+          const relevantTemplates =
+            vendorCategoryIds.size === 0
+              ? tmpl
+              : tmpl.filter((t) => {
+                  const ids = t.product_category_ids ?? [];
+                  return ids.length === 0 || ids.some((id) => vendorCategoryIds.has(id));
+                });
+
+          setTemplates(relevantTemplates);
+          setProducts(prods);
+          setCoupons(coups);
+          const catMap = new Map<number, Category>();
+          prods.forEach((p) => p.categories?.forEach((c) => catMap.set(c.id, c)));
+          setCategories(Array.from(catMap.values()));
+          setResourcesLoaded(true);
         })
         .finally(() => {
           if (!cancelled) setIsLoadingResources(false);
@@ -276,7 +284,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
         cancelled = true;
       };
     }
-  }, [isOpen, step, templates.length]);
+  }, [isOpen, step, resourcesLoaded]);
 
   const patch = (partial: Partial<FormData>) => setForm((f) => ({ ...f, ...partial }));
 
@@ -849,7 +857,7 @@ export default function NewCampaignModal({ isOpen, onClose, onSuccess }: Props) 
             </div>
           ) : templates.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-6 bg-gray-50 dark:bg-gray-800 rounded-xl">
-              هیچ قالبی تعریف نشده است.
+              هیچ قالبی برای دسته‌بندی خدمات شما تعریف نشده است.
             </p>
           ) : (
             <div className="space-y-2 max-h-44 overflow-y-auto">

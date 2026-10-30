@@ -83,8 +83,8 @@ export async function deleteCustomer(id: number): Promise<void> {
 
 // ── Message Templates ─────────────────────────────────────────────────────────
 
-export async function getTemplates(storeCategoryId?: number): Promise<MessageTemplate[]> {
-  const params = storeCategoryId ? { store_category_id: storeCategoryId } : {};
+export async function getTemplates(productCategoryId?: number): Promise<MessageTemplate[]> {
+  const params = productCategoryId ? { product_category_id: productCategoryId } : {};
   const res = await apiClient.get<{ data: MessageTemplate[] }>(`${BASE}/message-templates`, { params });
   return res.data.data ?? [];
 }
@@ -94,17 +94,4 @@ export async function getTemplates(storeCategoryId?: number): Promise<MessageTem
 export async function getCoupons(): Promise<BulkCoupon[]> {
   const res = await apiClient.get<{ data: BulkCoupon[] }>(`${BASE}/bulk-coupons`);
   return res.data.data ?? [];
-}
-
-// ── Vendor store category ───────────────────────────────────────────────────
-
-export interface VendorStoreCategoryResponse {
-  vendor_id: number;
-  store_category_id: number;
-  store_categories: { id: number; name: string; slug: string }[];
-}
-
-export async function getVendorStoreCategory(): Promise<VendorStoreCategoryResponse> {
-  const res = await apiClient.get<VendorStoreCategoryResponse>(`${BASE}/vendor/store-category`);
-  return res.data;
 }
