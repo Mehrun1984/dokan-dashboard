@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   Plus,
   AlertCircle,
@@ -11,6 +12,7 @@ import {
   Trash2,
   TicketPercent,
   Pencil,
+  Wallet,
 } from 'lucide-react';
 import {
   getCampaigns,
@@ -25,8 +27,10 @@ import type { CreateCouponPayload, DokanCoupon, UpdateCouponPayload } from '@/ty
 import NewCampaignModal from '@/components/advertising/NewCampaignModal';
 import AddCustomerModal from '@/components/advertising/AddCustomerModal';
 import CouponModal from '@/components/advertising/CouponModal';
+import WalletEmptyModal from '@/components/wallet/WalletEmptyModal';
 import { dokanService } from '@/services/dokan.service';
 import { useVendorVip } from '@/hooks/useVendorVip';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
 
 type Tab = 'campaigns' | 'customers' | 'coupons';
 
@@ -82,6 +86,7 @@ function formatDate(dateStr: string): string {
 
 export default function CampaignsPage() {
   const { isVip } = useVendorVip();
+  const { balance, isLoading: isWalletLoading, error: walletError } = useWalletBalance();
   const [activeTab, setActiveTab] = useState<Tab>('campaigns');
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -107,6 +112,7 @@ export default function CampaignsPage() {
   const [actionLoading, setActionLoading] = useState<Record<number, string>>({});
 
   const [showNewCampaign, setShowNewCampaign] = useState(false);
+  const [showWalletEmpty, setShowWalletEmpty] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
 
   const PER_PAGE = 50;
@@ -220,6 +226,34 @@ export default function CampaignsPage() {
   const handlePageChange = (offset: number) => {
     setCustomersOffset(offset);
     fetchCustomers(offset);
+  };
+
+  const handleCreateClick = () => {
+    if (activeTab === 'customers') {
+      setShowAddCustomer(true);
+      return;
+    }
+
+    if (activeTab === 'coupons') {
+      openNewCouponModal();
+      return;
+    }
+
+    if (isWalletLoading) return;
+
+    // Fail open when the wallet balance can't be determined, so a wallet
+    // service outage never blocks campaign creation.
+    if (walletError || balance === null) {
+      setShowNewCampaign(true);
+      return;
+    }
+
+    if (balance <= 0) {
+      setShowWalletEmpty(true);
+      return;
+    }
+
+    setShowNewCampaign(true);
   };
 
   // ── Coupon actions ─────────────────────────────────────────────────────────
@@ -644,16 +678,26 @@ export default function CampaignsPage() {
     <div className="max-w-4xl mx-auto">
       {/* Page header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">تبلیغات</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">تبلیغات</h1>
+          {activeTab === 'campaigns' && !isWalletLoading && balance !== null && (
+            <Link
+              href="/dashboard/wallet"
+              className={`inline-flex items-center gap-1.5 text-xs mt-1 transition-colors ${
+                balance <= 0
+                  ? 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              موجودی کیف پول: {balance.toLocaleString('fa-IR')} تومان
+            </Link>
+          )}
+        </div>
         <button
-          onClick={() =>
-            activeTab === 'campaigns'
-              ? setShowNewCampaign(true)
-              : activeTab === 'customers'
-                ? setShowAddCustomer(true)
-                : openNewCouponModal()
-          }
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
+          onClick={handleCreateClick}
+          disabled={activeTab === 'campaigns' && isWalletLoading}
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Plus className="w-4 h-4" />
           {activeTab === 'campaigns'
@@ -706,6 +750,10 @@ export default function CampaignsPage() {
         isOpen={showNewCampaign}
         onClose={() => setShowNewCampaign(false)}
         onSuccess={() => fetchCampaigns()}
+      />
+      <WalletEmptyModal
+        isOpen={showWalletEmpty}
+        onClose={() => setShowWalletEmpty(false)}
       />
       <AddCustomerModal
         isOpen={showAddCustomer}
