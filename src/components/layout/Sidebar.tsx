@@ -3,11 +3,12 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { vendorNavLinks, isNavLinkActive } from '@/lib/navigation';
+import { getVendorNavLinks, isNavLinkActive } from '@/lib/navigation';
 import { logoutVendor } from '@/app/actions/auth';
 import { ChevronRight, ChevronLeft, Moon, Sun, LogOut } from 'lucide-react';
 import { useDashboardTheme } from '@/providers/DashboardThemeProvider';
 import { useDashboardStore } from '@/providers/DashboardStoreProvider';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 
 export default function Sidebar() {
   const router = useRouter();
@@ -16,6 +17,8 @@ export default function Sidebar() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { effectiveTheme, toggleTheme } = useDashboardTheme();
   const { shopName, isLoadingShopName } = useDashboardStore();
+  const { isVendor } = useCurrentVendor();
+  const navLinks = getVendorNavLinks(isVendor);
 
   const onLogout = async () => {
     try {
@@ -63,7 +66,7 @@ export default function Sidebar() {
 
       {/* Navigation Links */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-        {vendorNavLinks.map((link) => {
+        {navLinks.map((link) => {
           const isActive = isNavLinkActive(pathname, link.href);
           const Icon = link.icon;
 

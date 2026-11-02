@@ -5,14 +5,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MoreHorizontal } from 'lucide-react';
 import {
-  mobilePrimaryNavLinks,
-  mobileSecondaryNavLinks,
+  getMobilePrimaryNavLinks,
+  getMobileSecondaryNavLinks,
   isNavLinkActive,
 } from '@/lib/navigation';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const { isVendor } = useCurrentVendor();
+  const primaryNavLinks = getMobilePrimaryNavLinks(isVendor);
+  const secondaryNavLinks = getMobileSecondaryNavLinks(isVendor);
 
   useEffect(() => {
     setIsMoreOpen(false);
@@ -33,7 +37,7 @@ export default function BottomNav() {
         <div className="md:hidden fixed inset-x-3 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl z-50 p-3">
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 px-1">دسترسی سریع</p>
           <div className="grid grid-cols-3 gap-2">
-            {mobileSecondaryNavLinks.map((link) => {
+            {secondaryNavLinks.map((link) => {
               const Icon = link.icon;
               const isActive = isNavLinkActive(pathname, link.href);
 
@@ -72,7 +76,7 @@ export default function BottomNav() {
         </button>
 
         <div className="flex items-center h-16 px-1">
-          {mobilePrimaryNavLinks.map((link) => {
+          {primaryNavLinks.map((link) => {
             const isActive = isNavLinkActive(pathname, link.href);
             const Icon = link.icon;
 

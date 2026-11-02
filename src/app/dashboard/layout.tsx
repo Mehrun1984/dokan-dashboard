@@ -6,6 +6,8 @@ import BottomNav from '@/components/layout/BottomNav';
 import DashboardMobileHeader from '@/components/layout/DashboardMobileHeader';
 import { DashboardThemeProvider } from '@/providers/DashboardThemeProvider';
 import { DashboardStoreProvider } from '@/providers/DashboardStoreProvider';
+import { CurrentVendorProvider } from '@/providers/CurrentVendorProvider';
+import { getCurrentVendor } from '@/lib/vendorSession';
 
 export default async function VendorLayout({
   children,
@@ -19,29 +21,33 @@ export default async function VendorLayout({
     redirect('/login');
   }
 
+  const vendor = await getCurrentVendor(token);
+
   return (
     <DashboardThemeProvider>
       <DashboardStoreProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col transition-colors">
-          <Sidebar />
+        <CurrentVendorProvider vendor={vendor}>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col transition-colors">
+            <Sidebar />
 
-        {/* 
-          Main content wrapper. 
-          - Mobile: padding bottom to clear the BottomNav (pb-16).
-          - Desktop: logical margin start (ms-64) to clear the expanded Sidebar.
-          (Note: If you implement a global state for the sidebar collapse, 
-          you can dynamically switch this between ms-20 and ms-64) 
-        */}
-          <main className="flex-1 pb-16 md:pb-0 md:ms-64 transition-all duration-300">
-            <DashboardMobileHeader />
+            {/* 
+              Main content wrapper. 
+              - Mobile: padding bottom to clear the BottomNav (pb-16).
+              - Desktop: logical margin start (ms-64) to clear the expanded Sidebar.
+              (Note: If you implement a global state for the sidebar collapse, 
+              you can dynamically switch this between ms-20 and ms-64) 
+            */}
+            <main className="flex-1 pb-16 md:pb-0 md:ms-64 transition-all duration-300">
+              <DashboardMobileHeader />
 
-            <div className="p-4 md:p-8 max-w-7xl mx-auto">
-              {children}
-            </div>
-          </main>
+              <div className="p-4 md:p-8 max-w-7xl mx-auto">
+                {children}
+              </div>
+            </main>
 
-          <BottomNav />
-        </div>
+            <BottomNav />
+          </div>
+        </CurrentVendorProvider>
       </DashboardStoreProvider>
     </DashboardThemeProvider>
   );
