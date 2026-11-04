@@ -31,6 +31,7 @@ import WalletEmptyModal from '@/components/wallet/WalletEmptyModal';
 import { dokanService } from '@/services/dokan.service';
 import { useVendorVip } from '@/hooks/useVendorVip';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 
 type Tab = 'campaigns' | 'customers' | 'coupons';
 
@@ -85,6 +86,8 @@ function formatDate(dateStr: string): string {
 }
 
 export default function CampaignsPage() {
+  const currentVendor = useCurrentVendor();
+  const isStaffMode = currentVendor.isVendorStaff && !currentVendor.isVendor;
   const { isVip } = useVendorVip();
   const { balance, isLoading: isWalletLoading, error: walletError } = useWalletBalance();
   const [activeTab, setActiveTab] = useState<Tab>('campaigns');
@@ -170,18 +173,18 @@ export default function CampaignsPage() {
   }, [activeTab, customersFetched, fetchCustomers]);
 
   useEffect(() => {
-    if (activeTab === 'coupons' && isVip && !couponsFetched) {
+    if (activeTab === 'coupons' && isVip && !isStaffMode && !couponsFetched) {
       fetchCoupons();
     }
-  }, [activeTab, isVip, couponsFetched, fetchCoupons]);
+  }, [activeTab, isVip, isStaffMode, couponsFetched, fetchCoupons]);
 
-  // If VIP access is revoked (or hasn't loaded yet) while the coupons tab is
-  // selected, fall back to the campaigns tab so it isn't left stranded.
+  // If VIP access is revoked (or hasn't loaded yet) or the current user is
+  // vendor staff, fall back to the campaigns tab so it isn't left stranded.
   useEffect(() => {
-    if (activeTab === 'coupons' && !isVip) {
+    if (activeTab === 'coupons' && (!isVip || isStaffMode)) {
       setActiveTab('campaigns');
     }
-  }, [activeTab, isVip]);
+  }, [activeTab, isVip, isStaffMode]);
 
   // ── Campaign actions ────────────────────────────────────────────────────────
 
@@ -715,7 +718,7 @@ export default function CampaignsPage() {
             [
               { key: 'campaigns', label: 'کمپین‌ها', icon: Megaphone },
               { key: 'customers', label: 'مخاطبان', icon: Users },
-              isVip ? { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent } : null,
+              isVip && !isStaffMode ? { key: 'coupons', label: 'کوپن‌ها', icon: TicketPercent } : null,
             ] as Array<{ key: Tab; label: string; icon: typeof Megaphone } | null>
           )
             .filter((tab): tab is { key: Tab; label: string; icon: typeof Megaphone } => tab !== null)

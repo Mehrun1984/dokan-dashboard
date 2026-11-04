@@ -7,6 +7,7 @@ import EditPriceModal from '@/components/products/EditPriceModal';
 import { AlertCircle, ArrowDownUp, Edit2, PackageSearch, Search } from 'lucide-react';
 import Image from 'next/image';
 import { useVendorVip } from '@/hooks/useVendorVip';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 
 type SortMode = 'newest' | 'name' | 'price-asc' | 'price-desc' | 'discounted';
 
@@ -16,6 +17,9 @@ const getCategoryLabel = (product: DokanProduct) =>
   product.categories?.length ? product.categories.map((c) => c.name).join('، ') : 'بدون دسته‌بندی';
 
 export default function ProductsPage() {
+  const currentVendor = useCurrentVendor();
+  const canEdit = !(currentVendor.isVendorStaff && !currentVendor.isVendor);
+
   const [products, setProducts] = useState<DokanProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -50,6 +54,7 @@ export default function ProductsPage() {
   };
 
   const openEditModal = (product: DokanProduct) => {
+    if (!canEdit) return;
     setSelectedProduct(product);
     setIsModalOpen(true);
   };
@@ -263,13 +268,15 @@ export default function ProductsPage() {
                       )}
                     </div>
 
-                    <button
-                      onClick={() => openEditModal(product)}
-                      className="mt-3 w-full py-2.5 flex items-center justify-center gap-2 text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg font-medium transition-colors"
-                    >
-                      <Edit2 size={16} />
-                      ویرایش قیمت
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => openEditModal(product)}
+                        className="mt-3 w-full py-2.5 flex items-center justify-center gap-2 text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg font-medium transition-colors"
+                      >
+                        <Edit2 size={16} />
+                        ویرایش قیمت
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -281,9 +288,9 @@ export default function ProductsPage() {
             <div className="grid grid-cols-12 gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-800/40 text-sm font-semibold text-gray-600 dark:text-gray-300">
               <div className="col-span-5">محصول</div>
               <div className="col-span-3">دسته‌بندی</div>
-              <div className={isVip ? 'col-span-2' : 'col-span-3'}>قیمت اصلی</div>
+              <div className={isVip ? (canEdit ? 'col-span-2' : 'col-span-3') : (canEdit ? 'col-span-3' : 'col-span-4')}>قیمت اصلی</div>
               {isVip && <div className="col-span-1">حراج</div>}
-              <div className="col-span-1">عملیات</div>
+              {canEdit && <div className="col-span-1">عملیات</div>}
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -312,7 +319,7 @@ export default function ProductsPage() {
 
                     <div className="col-span-3 text-sm text-gray-600 dark:text-gray-300 truncate">{getCategoryLabel(product)}</div>
 
-                    <div className={`${isVip ? 'col-span-2' : 'col-span-3'} text-sm font-semibold text-gray-900 dark:text-gray-100`}>{regularPrice.toLocaleString('fa-IR')} تومان</div>
+                    <div className={`${isVip ? (canEdit ? 'col-span-2' : 'col-span-3') : (canEdit ? 'col-span-3' : 'col-span-4')} text-sm font-semibold text-gray-900 dark:text-gray-100`}>{regularPrice.toLocaleString('fa-IR')} تومان</div>
 
                     {isVip && (
                       <div className="col-span-1">
@@ -326,15 +333,17 @@ export default function ProductsPage() {
                       </div>
                     )}
 
-                    <div className="col-span-1">
-                      <button
-                        onClick={() => openEditModal(product)}
-                        className="w-full py-2 text-xs flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg font-medium transition-colors"
-                      >
-                        <Edit2 size={13} />
-                        ویرایش
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="col-span-1">
+                        <button
+                          onClick={() => openEditModal(product)}
+                          className="w-full py-2 text-xs flex items-center justify-center gap-1.5 text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg font-medium transition-colors"
+                        >
+                          <Edit2 size={13} />
+                          ویرایش
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -344,13 +353,15 @@ export default function ProductsPage() {
       )}
 
       {/* The Edit Modal */}
-      <EditPriceModal
-        isOpen={isModalOpen}
-        isVip={isVip}
-        product={selectedProduct}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={handleProductUpdated}
-      />
+      {canEdit && (
+        <EditPriceModal
+          isOpen={isModalOpen}
+          isVip={isVip}
+          product={selectedProduct}
+          onClose={() => setIsModalOpen(false)}
+          onSuccess={handleProductUpdated}
+        />
+      )}
     </div>
   );
 }
