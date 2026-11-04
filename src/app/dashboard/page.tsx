@@ -10,8 +10,12 @@ import {
   Wallet, TrendingUp, ShoppingBag, CalendarClock, Clock, User, ChevronLeft 
 } from 'lucide-react';
 import Link from 'next/link';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 
 export default function DashboardHome() {
+  const currentVendor = useCurrentVendor();
+  const isStaffMode = currentVendor.isVendorStaff && !currentVendor.isVendor;
+
   const [isLoading, setIsLoading] = useState(true);
   const [summary, setSummary] = useState<any>(null);
   const [salesData, setSalesData] = useState<any[]>([]);
@@ -82,7 +86,7 @@ export default function DashboardHome() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 ${isStaffMode ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-4`}>
         <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col">
           <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 flex items-center justify-center mb-3">
             <TrendingUp size={20} />
@@ -93,15 +97,17 @@ export default function DashboardHome() {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col">
-          <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 flex items-center justify-center mb-3">
-            <Wallet size={20} />
+        {!isStaffMode && (
+          <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col">
+            <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 flex items-center justify-center mb-3">
+              <Wallet size={20} />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">موجودی فعلی</p>
+            <p className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">
+              {Number(summary?.balance || 0).toLocaleString('fa-IR')} <span className="text-xs font-normal text-gray-500 dark:text-gray-400">تومان</span>
+            </p>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">موجودی فعلی</p>
-          <p className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">
-            {Number(summary?.balance || 0).toLocaleString('fa-IR')} <span className="text-xs font-normal text-gray-500 dark:text-gray-400">تومان</span>
-          </p>
-        </div>
+        )}
 
         <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col">
           <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 flex items-center justify-center mb-3">

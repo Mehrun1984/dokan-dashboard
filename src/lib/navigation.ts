@@ -24,8 +24,8 @@ export const vendorNavLinks: VendorNavLink[] = [
   { name: 'خدمات', href: '/dashboard/products', icon: ShoppingBag },
   { name: 'سفارشات', href: '/dashboard/orders', icon: ShoppingCart },
   { name: 'تبلیغات', href: '/dashboard/campaigns', icon: Megaphone },
-  { name: 'پروفایل', href: '/dashboard/profile', icon: User },
-  { name: 'کیف پول', href: '/dashboard/wallet', icon: WalletCards },
+  { name: 'پروفایل', href: '/dashboard/profile', icon: User, requiresVendor: true },
+  { name: 'کیف پول', href: '/dashboard/wallet', icon: WalletCards, requiresVendor: true },
   { name: 'کارمندان', href: '/dashboard/staff', icon: UserCog, requiresVendor: true },
 ];
 

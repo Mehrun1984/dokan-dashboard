@@ -242,6 +242,11 @@ export default function CampaignsPage() {
       return;
     }
 
+    if (isStaffMode) {
+      setShowNewCampaign(true);
+      return;
+    }
+
     if (isWalletLoading) return;
 
     // Fail open when the wallet balance can't be determined, so a wallet
@@ -683,7 +688,7 @@ export default function CampaignsPage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">تبلیغات</h1>
-          {activeTab === 'campaigns' && !isWalletLoading && balance !== null && (
+          {activeTab === 'campaigns' && !isStaffMode && !isWalletLoading && balance !== null && (
             <Link
               href="/dashboard/wallet"
               className={`inline-flex items-center gap-1.5 text-xs mt-1 transition-colors ${
