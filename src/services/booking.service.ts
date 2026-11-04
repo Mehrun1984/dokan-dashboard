@@ -22,6 +22,7 @@ export interface Appointment {
   operator_internal_name?: string;
   operator_id?: number;
   product_operator_id?: number;
+  operator_user_id?: number;
 }
 
 // The payload sent to create an appointment (Shadow Account Flow)

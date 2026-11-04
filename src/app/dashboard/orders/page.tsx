@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { dokanService } from '@/services/dokan.service';
 import { bookingService, Appointment, BookingOperator } from '@/services/booking.service';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 import { AlertCircle, Calendar, Clock, ShoppingBag, User } from 'lucide-react';
 import {
   extractDate,
@@ -89,9 +90,11 @@ const enrichAppointmentsWithOperators = async (appointments: Appointment[]): Pro
         String(appointment.operator_alias || appointment.operator_internal_name || '').trim()
       );
       const operatorId = Number(appointment.operator_id || appointment.product_operator_id || 0);
+      const operatorUserId = Number(appointment.operator_user_id || 0);
       const productId = Number(appointment.product_id || appointment.service_id || 0);
+      const needsOperatorLookup = (!hasLabel || operatorUserId <= 0) && operatorId > 0 && productId > 0;
 
-      if (hasLabel || operatorId <= 0 || productId <= 0) {
+      if (!needsOperatorLookup) {
         return appointment;
       }
 
@@ -104,8 +107,9 @@ const enrichAppointmentsWithOperators = async (appointments: Appointment[]): Pro
 
       return {
         ...appointment,
-        operator_alias: match.alias_name,
-        operator_internal_name: match.internal_name,
+        operator_alias: hasLabel ? appointment.operator_alias : match.alias_name,
+        operator_internal_name: hasLabel ? appointment.operator_internal_name : match.internal_name,
+        operator_user_id: appointment.operator_user_id || match.operator_user_id,
       };
     })
   );
@@ -174,6 +178,10 @@ const findAppointmentsForOrder = (
 };
 
 export default function OrdersPage() {
+  const currentVendor = useCurrentVendor();
+  const isStaffMode = currentVendor.isVendorStaff && !currentVendor.isVendor;
+  const currentUserId = Number(currentVendor.userId || 0);
+
   const [orders, setOrders] = useState<DokanOrder[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
@@ -250,11 +258,45 @@ export default function OrdersPage() {
     return match ? match.label : status;
   };
 
-  const appointmentIndex = useMemo(() => buildAppointmentIndex(appointments), [appointments]);
+  const scopedAppointments = useMemo(() => {
+    if (!isStaffMode) {
+      return appointments;
+    }
+
+    if (currentUserId <= 0) {
+      return [];
+    }
+
+    return appointments.filter(
+      (appointment) => Number(appointment.operator_user_id || 0) === currentUserId
+    );
+  }, [appointments, isStaffMode, currentUserId]);
+
+  const appointmentIndex = useMemo(
+    () => buildAppointmentIndex(scopedAppointments),
+    [scopedAppointments]
+  );
+
+  const visibleOrders = useMemo(() => {
+    if (!isStaffMode) {
+      return orders;
+    }
+
+    return orders.filter(
+      (order) => findAppointmentsForOrder(order, appointmentIndex).length > 0
+    );
+  }, [orders, isStaffMode, appointmentIndex]);
 
   return (
     <div className="space-y-6 pb-24 relative min-h-[80vh]">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">سفارشات مشتریان</h1>
+
+      {isStaffMode && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-2xl border border-blue-100 dark:border-blue-900/40 p-4 flex items-start gap-3">
+          <User size={20} className="shrink-0 mt-0.5" />
+          <p className="text-sm">شما فقط سفارش‌های مربوط به نوبت‌های خودتان را می‌بینید.</p>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
@@ -269,15 +311,21 @@ export default function OrdersPage() {
             <p className="text-sm mt-1">{loadError}</p>
           </div>
         </div>
-      ) : orders.length === 0 ? (
+      ) : visibleOrders.length === 0 ? (
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-12 flex flex-col items-center text-center">
           <ShoppingBag size={44} className="text-gray-300 dark:text-gray-600 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">سفارشی یافت نشد</h3>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">هنوز سفارشی برای نمایش وجود ندارد.</p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">
+            {isStaffMode ? 'سفارشی مرتبط با نوبت‌های شما یافت نشد' : 'سفارشی یافت نشد'}
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
+            {isStaffMode
+              ? 'هنوز سفارشی که شما اپراتور آن باشید ثبت نشده است.'
+              : 'هنوز سفارشی برای نمایش وجود ندارد.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {orders.map((order) => {
+          {visibleOrders.map((order) => {
             const isExpanded = expandedOrderId === order.id;
             const relatedAppointments = findAppointmentsForOrder(order, appointmentIndex);
 
