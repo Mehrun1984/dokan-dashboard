@@ -9,6 +9,7 @@ import { dokanService } from '@/services/dokan.service';
 import { DokanProduct } from '@/types/dokan';
 import { X, AlertCircle, ChevronDown, Check } from 'lucide-react';
 import JalaliDatePicker, { toGregorian } from '@/components/advertising/JalaliDatePicker';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 
 const bookingSchema = z.object({
   customer_name: z.string().min(2, 'نام مشتری الزامی است'),
@@ -220,7 +221,27 @@ const dedupeOperatorsById = (operators: BookingOperator[]): BookingOperator[] =>
   return deduped;
 };
 
+const restrictOperatorsForStaff = (
+  operators: BookingOperator[],
+  isStaffMode: boolean,
+  userId: number
+) => {
+  if (!isStaffMode) {
+    return operators;
+  }
+
+  if (userId <= 0) {
+    return [];
+  }
+
+  return operators.filter((operator) => Number(operator.operator_user_id || 0) === userId);
+};
+
 export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Props) {
+  const currentVendor = useCurrentVendor();
+  const isStaffMode = currentVendor.isVendorStaff && !currentVendor.isVendor;
+  const currentUserId = Number(currentVendor.userId || 0);
+
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<DokanProduct[]>([]);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -509,7 +530,13 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
         }
 
         const normalizedOperators = dedupeOperatorsById(operators.map(normalizeOperator));
-        setAllOperators(normalizedOperators.filter(isActiveOperator));
+        setAllOperators(
+          restrictOperatorsForStaff(
+            normalizedOperators.filter(isActiveOperator),
+            isStaffMode,
+            currentUserId
+          )
+        );
       } catch (fetchError) {
         if (!isMounted) {
           return;
@@ -528,7 +555,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
     return () => {
       isMounted = false;
     };
-  }, [isOpen, selectedServiceId]);
+  }, [isOpen, selectedServiceId, isStaffMode, currentUserId]);
 
   useEffect(() => {
     if (!isOpen || selectedServiceId <= 0 || selectedDateValue === '') {
@@ -563,17 +590,34 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
         const activeByDate = normalizedDateOperators.filter(isActiveOperator);
         // If is_active is absent on all items, fall back to the full raw list —
         // the endpoint already returned only operators available on this date.
-        const availableOperators = activeByDate.length > 0 ? activeByDate : normalizedDateOperators;
+        const availableByDate = activeByDate.length > 0 ? activeByDate : normalizedDateOperators;
+        const availableIds = new Set(availableByDate.map((operator) => operator.id));
+        const availableOperators = isStaffMode
+          ? allOperatorsRef.current.length > 0
+            ? allOperatorsRef.current.filter((operator) => availableIds.has(operator.id))
+            : restrictOperatorsForStaff(availableByDate, true, currentUserId)
+          : availableByDate;
 
         if (availableOperators.length === 0) {
-          // Last resort: fall back to operators already fetched from /operators endpoint.
-          const fallback = dedupeOperatorsById(allOperatorsRef.current);
-          if (fallback.length > 0) {
-            setDateOperators(fallback);
-            return;
+          if (!isStaffMode) {
+            // Last resort: fall back to operators already fetched from /operators endpoint.
+            const fallback = dedupeOperatorsById(allOperatorsRef.current);
+            if (fallback.length > 0) {
+              setDateOperators(fallback);
+              return;
+            }
           }
+
+          // Staff must never fall back to the service's operator list: that list
+          // ignores working days, which would show them as available on any date.
           setDateOperators([]);
-          setOperatorNotice('در تاریخ انتخاب‌شده اپراتور فعالی برای این خدمت یافت نشد.');
+          setSlots([]);
+          setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
+          setOperatorNotice(
+            isStaffMode
+              ? 'شما در تاریخ انتخاب‌شده برای این خدمت شیفت کاری ندارید.'
+              : 'در تاریخ انتخاب‌شده اپراتور فعالی برای این خدمت یافت نشد.'
+          );
           setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
           return;
         }
@@ -582,11 +626,27 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
         const operatorIds = new Set(availableOperators.map((operator) => operator.id));
         const merged = currentAllOperators.filter((operator) => operatorIds.has(operator.id));
         const finalOperators = dedupeOperatorsById(merged.length > 0 ? merged : availableOperators);
+        const restrictedFinalOperators = restrictOperatorsForStaff(
+          finalOperators,
+          isStaffMode,
+          currentUserId
+        );
 
-        setDateOperators(finalOperators);
+        setDateOperators(restrictedFinalOperators);
 
         const currentOperatorId = selectedOperatorIdRef.current;
-        if (currentOperatorId > 0 && !finalOperators.some((operator) => operator.id === currentOperatorId)) {
+        if (isStaffMode && restrictedFinalOperators.length === 1) {
+          const selfOperatorId = restrictedFinalOperators[0].id;
+          if (currentOperatorId !== selfOperatorId) {
+            setValue('product_operator_id', selfOperatorId, {
+              shouldValidate: true,
+              shouldDirty: true,
+            });
+          }
+        } else if (
+          currentOperatorId > 0 &&
+          !restrictedFinalOperators.some((operator) => operator.id === currentOperatorId)
+        ) {
           setValue('product_operator_id', undefined, { shouldValidate: true, shouldDirty: true });
           setSlots([]);
           setValue('time_slot', '', { shouldValidate: true, shouldDirty: true });
@@ -614,7 +674,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: Prop
   // inside the async callback, so adding it here would cause an unnecessary operators
   // re-fetch every time the user picks an operator.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, selectedDateValue, selectedServiceId, setValue]);
+  }, [isOpen, selectedDateValue, selectedServiceId, isStaffMode, currentUserId, setValue]);
 
   useEffect(() => {
     if (!isOpen || selectedServiceId <= 0 || selectedDateValue === '' || selectedOperatorId <= 0) {

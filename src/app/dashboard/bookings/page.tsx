@@ -11,8 +11,17 @@ import {
   extractTime,
   getStatusMeta,
 } from '@/utils/bookingDisplay';
+import {
+  enrichAppointmentsWithOperators,
+  filterAppointmentsForStaff,
+} from '@/utils/bookingAppointments';
+import { useCurrentVendor } from '@/providers/CurrentVendorProvider';
 
 export default function AppointmentsPage() {
+  const currentVendor = useCurrentVendor();
+  const isStaffMode = currentVendor.isVendorStaff && !currentVendor.isVendor;
+  const currentUserId = Number(currentVendor.userId || 0);
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,7 +42,12 @@ export default function AppointmentsPage() {
               : []
         );
 
-      setAppointments(normalized);
+      if (isStaffMode) {
+        const enriched = await enrichAppointmentsWithOperators(normalized);
+        setAppointments(filterAppointmentsForStaff(enriched, currentUserId));
+      } else {
+        setAppointments(normalized);
+      }
     } catch (error: any) {
       console.error('Failed to load appointments', error);
       setLoadError(error?.response?.data?.message || 'خطا در دریافت نوبت‌ها.');
@@ -64,6 +78,13 @@ export default function AppointmentsPage() {
         </button>
       </div>
 
+      {isStaffMode && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-2xl border border-blue-100 dark:border-blue-900/40 p-4 flex items-start gap-3">
+          <User size={20} className="shrink-0 mt-0.5" />
+          <p className="text-sm">شما فقط نوبت‌هایی را می‌بینید که اپراتور آن‌ها هستید.</p>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -80,8 +101,14 @@ export default function AppointmentsPage() {
       ) : appointments.length === 0 ? (
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-12 flex flex-col items-center text-center">
           <CalendarDays size={48} className="text-gray-300 dark:text-gray-600 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">نوبتی یافت نشد</h3>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">هنوز نوبتی برای نمایش وجود ندارد.</p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">
+            {isStaffMode ? 'نوبتی برای شما یافت نشد' : 'نوبتی یافت نشد'}
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
+            {isStaffMode
+              ? 'هنوز نوبتی که شما اپراتور آن باشید ثبت نشده است.'
+              : 'هنوز نوبتی برای نمایش وجود ندارد.'}
+          </p>
         </div>
       ) : (
         <>

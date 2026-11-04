@@ -20,7 +20,7 @@ export type VendorNavLink = {
 export const vendorNavLinks: VendorNavLink[] = [
   { name: 'داشبورد', href: '/dashboard', icon: LayoutDashboard },
   { name: 'نوبت‌دهی', href: '/dashboard/bookings', icon: CalendarDays },
-  { name: 'برنامه کاری', href: '/dashboard/schedule', icon: Clock3 },
+  { name: 'برنامه کاری', href: '/dashboard/schedule', icon: Clock3, requiresVendor: true },
   { name: 'خدمات', href: '/dashboard/products', icon: ShoppingBag },
   { name: 'سفارشات', href: '/dashboard/orders', icon: ShoppingCart },
   { name: 'تبلیغات', href: '/dashboard/campaigns', icon: Megaphone },
