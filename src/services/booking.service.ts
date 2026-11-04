@@ -6,6 +6,8 @@ const NAMESPACE = '/core-plugin/v1/booking';
 export interface Appointment {
   id: number;
   service_id?: number;
+  product_id?: number;
+  order_id?: number;
   customer_name: string;
   customer_phone: string;
   date?: string;

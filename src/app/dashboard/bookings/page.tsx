@@ -4,100 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { bookingService, Appointment } from '@/services/booking.service';
 import NewAppointmentModal from '@/components/bookings/NewAppointmentModal';
 import { AlertCircle, Calendar, CalendarDays, Clock, Plus, User } from 'lucide-react';
-
-type BookingStatus = 'pending' | 'cancelled' | 'confirmed';
-
-const jalaliDateFormatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-
-const getStatusMeta = (status: string): { label: string; className: string; value: BookingStatus } => {
-  if (status === 'pending') {
-    return {
-      label: 'در انتظار',
-      value: 'pending',
-      className: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300',
-    };
-  }
-
-  if (status === 'cancelled') {
-    return {
-      label: 'لغو شده',
-      value: 'cancelled',
-      className: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300',
-    };
-  }
-
-  return {
-    label: 'تایید شده',
-    value: 'confirmed',
-    className: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-300',
-  };
-};
-
-const extractCustomerInfo = (apt: any) => {
-  let customerName = 'مشتری (بدون نام)';
-  let customerPhone = '---';
-
-  if (apt.notes && apt.notes.includes('نام مشتری:')) {
-    const parts = apt.notes.split('|');
-    customerName = parts[0]?.replace('نام مشتری:', '').trim() || customerName;
-    customerPhone = parts[1]?.replace('تلفن:', '').trim() || customerPhone;
-  } else if (apt.customer_name) {
-    customerName = apt.customer_name;
-    customerPhone = apt.customer_phone || '---';
-  }
-
-  return { customerName, customerPhone };
-};
-
-const formatJalaliDate = (rawDate?: string) => {
-  if (!rawDate) {
-    return 'بدون تاریخ';
-  }
-
-  const normalizedDate = rawDate.split('T')[0];
-  const dateMatch = normalizedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-
-  if (!dateMatch) {
-    return rawDate;
-  }
-
-  const year = Number(dateMatch[1]);
-  const month = Number(dateMatch[2]);
-  const day = Number(dateMatch[3]);
-  const parsedDate = new Date(year, month - 1, day);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return rawDate;
-  }
-
-  return jalaliDateFormatter.format(parsedDate);
-};
-
-const extractDate = (apt: any) => formatJalaliDate(apt.appointment_date || apt.date);
-const extractTime = (apt: any) => (apt.start_time || apt.time_slot ? (apt.start_time || apt.time_slot).substring(0, 5) : '--:--');
-const extractOperator = (apt: any) => {
-  const alias = String(apt?.operator_alias || '').trim();
-  const internalName = String(apt?.operator_internal_name || '').trim();
-  const operatorId = Number(apt?.operator_id || apt?.product_operator_id || 0);
-
-  if (alias && internalName) {
-    return `${alias} - ${internalName}`;
-  }
-
-  if (alias) {
-    return alias;
-  }
-
-  if (operatorId > 0) {
-    return `اپراتور #${operatorId}`;
-  }
-
-  return 'تعیین نشده';
-};
+import {
+  extractCustomerInfo,
+  extractDate,
+  extractOperator,
+  extractTime,
+  getStatusMeta,
+} from '@/utils/bookingDisplay';
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);

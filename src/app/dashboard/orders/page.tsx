@@ -1,8 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { dokanService } from '@/services/dokan.service';
-import { AlertCircle, ShoppingBag } from 'lucide-react';
+import { bookingService, Appointment, BookingOperator } from '@/services/booking.service';
+import { AlertCircle, Calendar, Clock, ShoppingBag, User } from 'lucide-react';
+import {
+  extractDate,
+  extractOperator,
+  extractTime,
+  getStatusMeta,
+} from '@/utils/bookingDisplay';
 
 const ORDER_STATUSES = [
   { value: 'wc-pending', label: 'در انتظار پرداخت' },
@@ -12,8 +19,163 @@ const ORDER_STATUSES = [
   { value: 'wc-cancelled', label: 'لغو شده' },
 ];
 
+interface OrderLineItem {
+  product_id?: number;
+  name?: string;
+  quantity?: number;
+  total?: string | number;
+}
+
+interface OrderAddress {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  email?: string;
+}
+
+interface DokanOrder {
+  id: number;
+  status: string;
+  total: string | number;
+  date_created: string;
+  billing?: OrderAddress;
+  shipping?: OrderAddress;
+  line_items?: OrderLineItem[];
+}
+
+const normalizeList = <T,>(data: unknown, keys: string[]): T[] => {
+  if (Array.isArray(data)) {
+    return data as T[];
+  }
+
+  const source = data as Record<string, unknown> | null | undefined;
+  for (const key of keys) {
+    if (Array.isArray(source?.[key])) {
+      return source[key] as T[];
+    }
+  }
+
+  return [];
+};
+
+const normalizePhone = (value: unknown) => {
+  const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+  const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+
+  return String(value || '')
+    .replace(/[۰-۹]/g, (digit) => String(persianDigits.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)))
+    .replace(/[^\d]/g, '')
+    .replace(/^0+/, '');
+};
+
+const enrichAppointmentsWithOperators = async (appointments: Appointment[]): Promise<Appointment[]> => {
+  const operatorCache = new Map<number, Promise<BookingOperator[]>>();
+
+  const loadOperators = (productId: number) => {
+    if (!operatorCache.has(productId)) {
+      operatorCache.set(
+        productId,
+        bookingService.listOperators(productId).catch(() => [] as BookingOperator[])
+      );
+    }
+
+    return operatorCache.get(productId)!;
+  };
+
+  return Promise.all(
+    appointments.map(async (appointment) => {
+      const hasLabel = Boolean(
+        String(appointment.operator_alias || appointment.operator_internal_name || '').trim()
+      );
+      const operatorId = Number(appointment.operator_id || appointment.product_operator_id || 0);
+      const productId = Number(appointment.product_id || appointment.service_id || 0);
+
+      if (hasLabel || operatorId <= 0 || productId <= 0) {
+        return appointment;
+      }
+
+      const operators = await loadOperators(productId);
+      const match = operators.find((operator) => Number(operator.id) === operatorId);
+
+      if (!match) {
+        return appointment;
+      }
+
+      return {
+        ...appointment,
+        operator_alias: match.alias_name,
+        operator_internal_name: match.internal_name,
+      };
+    })
+  );
+};
+
+const buildAppointmentIndex = (appointments: Appointment[]) => {
+  const byOrderId = new Map<number, Appointment[]>();
+  const withoutOrderId: Appointment[] = [];
+
+  appointments.forEach((appointment) => {
+    const orderId = Number(appointment.order_id || 0);
+
+    if (orderId > 0) {
+      const existing = byOrderId.get(orderId) || [];
+      existing.push(appointment);
+      byOrderId.set(orderId, existing);
+      return;
+    }
+
+    withoutOrderId.push(appointment);
+  });
+
+  return { byOrderId, withoutOrderId };
+};
+
+const findAppointmentsForOrder = (
+  order: DokanOrder,
+  index: ReturnType<typeof buildAppointmentIndex>
+) => {
+  const directMatch = index.byOrderId.get(order.id);
+  if (directMatch && directMatch.length > 0) {
+    return directMatch;
+  }
+
+  const orderPhone = normalizePhone(order.billing?.phone || order.shipping?.phone);
+  if (!orderPhone) {
+    return [];
+  }
+
+  const phoneMatches = index.withoutOrderId.filter(
+    (appointment) => normalizePhone(appointment.customer_phone) === orderPhone
+  );
+
+  if (phoneMatches.length === 0) {
+    return [];
+  }
+
+  const orderProductIds = new Set<number>();
+  (order.line_items || []).forEach((item) => {
+    const productId = Number(item.product_id || 0);
+    if (productId > 0) {
+      orderProductIds.add(productId);
+    }
+  });
+
+  const productMatches = phoneMatches.filter((appointment) => {
+    const productId = Number(appointment.product_id || appointment.service_id || 0);
+    return productId > 0 && orderProductIds.has(productId);
+  });
+
+  if (productMatches.length > 0) {
+    return productMatches;
+  }
+
+  return phoneMatches.length === 1 ? phoneMatches : [];
+};
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<DokanOrder[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,26 +189,42 @@ export default function OrdersPage() {
     try {
       setIsLoading(true);
       setLoadError(null);
-      const data = await dokanService.getOrders();
-      const normalizedOrders = Array.isArray(data)
-        ? data
-        : (
-          Array.isArray((data as any)?.orders)
-            ? (data as any).orders
-            : Array.isArray((data as any)?.data)
-              ? (data as any).data
-              : Array.isArray((data as any)?.results)
-                ? (data as any).results
-                : Array.isArray((data as any)?.items)
-                  ? (data as any).items
-                  : []
-        );
 
+      const [ordersResult, appointmentsResult] = await Promise.allSettled([
+        dokanService.getOrders(),
+        bookingService.getAppointments(),
+      ]);
+
+      if (ordersResult.status === 'rejected') {
+        throw ordersResult.reason;
+      }
+
+      const normalizedOrders = normalizeList<DokanOrder>(ordersResult.value, [
+        'orders',
+        'data',
+        'results',
+        'items',
+      ]);
       setOrders(normalizedOrders);
+
+      if (appointmentsResult.status === 'fulfilled') {
+        const normalizedAppointments = normalizeList<Appointment>(appointmentsResult.value, [
+          'appointments',
+          'data',
+          'results',
+          'items',
+        ]);
+        const enrichedAppointments = await enrichAppointmentsWithOperators(normalizedAppointments);
+        setAppointments(enrichedAppointments);
+      } else {
+        console.error('Failed to load appointments for orders', appointmentsResult.reason);
+        setAppointments([]);
+      }
     } catch (error: any) {
       console.error('Failed to load orders', error);
       setLoadError(error?.response?.data?.message || 'خطا در دریافت سفارشات.');
       setOrders([]);
+      setAppointments([]);
     } finally {
       setIsLoading(false);
     }
@@ -71,6 +249,8 @@ export default function OrdersPage() {
     const match = ORDER_STATUSES.find(s => s.value.includes(status));
     return match ? match.label : status;
   };
+
+  const appointmentIndex = useMemo(() => buildAppointmentIndex(appointments), [appointments]);
 
   return (
     <div className="space-y-6 pb-24 relative min-h-[80vh]">
@@ -99,6 +279,7 @@ export default function OrdersPage() {
         <div className="grid grid-cols-1 gap-4">
           {orders.map((order) => {
             const isExpanded = expandedOrderId === order.id;
+            const relatedAppointments = findAppointmentsForOrder(order, appointmentIndex);
 
             return (
               <div key={order.id} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
@@ -148,6 +329,50 @@ export default function OrdersPage() {
                         </select>
                       </div>
 
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-200">اطلاعات نوبت</p>
+
+                      {relatedAppointments.length > 0 ? (
+                        <div className="space-y-2">
+                          {relatedAppointments.map((appointment) => {
+                            const status = getStatusMeta(appointment.status || '');
+
+                            return (
+                              <div
+                                key={appointment.id}
+                                className="rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800/60 p-3 flex flex-col sm:flex-row sm:items-center gap-3"
+                              >
+                                <div className="flex-1 space-y-1.5 min-w-0">
+                                  <p className="text-sm text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+                                    <User size={15} className="text-blue-500 shrink-0" />
+                                    <span className="font-medium whitespace-nowrap">اپراتور:</span>
+                                    <span className="truncate">{extractOperator(appointment)}</span>
+                                  </p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
+                                    <Calendar size={15} className="text-blue-500 shrink-0" />
+                                    <span className="font-medium whitespace-nowrap">تاریخ نوبت:</span>
+                                    <span>{extractDate(appointment)}</span>
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+                                  <span className="text-sm font-mono font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-1.5" dir="ltr">
+                                    <Clock size={15} className="text-blue-500" />
+                                    {extractTime(appointment)}
+                                  </span>
+                                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${status.className}`}>
+                                    {status.label}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">نوبت مرتبطی برای این سفارش یافت نشد.</p>
+                      )}
                     </div>
                   </div>
                 )}
