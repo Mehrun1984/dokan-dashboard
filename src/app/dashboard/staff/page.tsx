@@ -7,7 +7,6 @@ import {
   Mail,
   Pencil,
   Phone,
-  ShieldCheck,
   Trash2,
   UserPlus,
   Users,
@@ -77,7 +76,7 @@ export default function StaffListPage() {
             کارمندان فروشگاه
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            کارمندان فروشگاه را اضافه کنید و سطح دسترسی هر کدام را مدیریت کنید.
+            کارمندان فروشگاه را اضافه و اطلاعات آن‌ها را مدیریت کنید.
           </p>
         </div>
 
@@ -141,7 +140,6 @@ export default function StaffListPage() {
                   <th className="text-start font-medium px-5 py-3">کارمند</th>
                   <th className="text-start font-medium px-5 py-3">ایمیل</th>
                   <th className="text-start font-medium px-5 py-3">موبایل</th>
-                  <th className="text-start font-medium px-5 py-3">دسترسی‌ها</th>
                   <th className="text-end font-medium px-5 py-3">عملیات</th>
                 </tr>
               </thead>
@@ -175,15 +173,6 @@ export default function StaffListPage() {
                       </td>
                       <td className="px-5 py-4 text-gray-600 dark:text-gray-300" dir="ltr">
                         {staff.phone || '---'}
-                      </td>
-                      <td className="px-5 py-4">
-                        <Link
-                          href={`/dashboard/staff/${staffId}/permissions`}
-                          className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-300 hover:text-blue-700 dark:hover:text-blue-200 text-xs font-medium"
-                        >
-                          <ShieldCheck size={15} />
-                          مدیریت دسترسی
-                        </Link>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1">
@@ -265,14 +254,6 @@ export default function StaffListPage() {
                       <span>{staff.phone || '---'}</span>
                     </p>
                   </div>
-
-                  <Link
-                    href={`/dashboard/staff/${staffId}/permissions`}
-                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 text-blue-600 dark:text-blue-300 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <ShieldCheck size={17} />
-                    مدیریت دسترسی‌ها
-                  </Link>
                 </div>
               );
             })}

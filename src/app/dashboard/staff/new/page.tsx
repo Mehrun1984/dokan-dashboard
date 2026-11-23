@@ -22,7 +22,7 @@ export default function NewStaffPage() {
     const createdId = created?.ID ?? created?.id;
 
     if (createdId) {
-      router.push(`/dashboard/staff/${createdId}/permissions`);
+      router.push(`/dashboard/staff/${createdId}/edit`);
     } else {
       router.push('/dashboard/staff');
     }
@@ -46,7 +46,7 @@ export default function NewStaffPage() {
             افزودن کارمند جدید
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            اطلاعات کارمند را وارد کنید و سپس سطح دسترسی او را مشخص کنید.
+            اطلاعات کارمند را وارد کنید.
           </p>
         </div>
       </div>
